@@ -194,4 +194,4 @@ const s = StyleSheet.create({
   micBase: { width: 16, height: 8, borderLeftWidth: 2, borderRightWidth: 2, borderBottomWidth: 2, borderColor: '#1C1C1E', borderBottomLeftRadius: 8, borderBottomRightRadius: 8 },
   micHaste: { width: 2, height: 4, backgroundColor: '#1C1C1E' },
   micPe: { width: 12, height: 2, backgroundColor: '#1C1C1E', borderRadius: 1 },
-});
+}); 
