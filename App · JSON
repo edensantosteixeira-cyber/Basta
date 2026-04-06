@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "Calculadora",
+    "slug": "basta",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#3A1F6E"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "package": "com.edensantos.calculadora",
+      "versionCode": 1,
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.VIBRATE",
+        "android.permission.SEND_SMS"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Este app usa sua localização para enviar no alerta de emergência.",
+          "locationAlwaysPermission": "Permite rastrear sua localização em segundo plano durante situações de risco.",
+          "locationWhenInUsePermission": "Permite enviar sua localização no SOS."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permite salvar fotos como evidências no Diário.",
+          "cameraPermission": "Permite tirar fotos e gravar vídeos como evidências."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Permite gravar áudio secretamente como evidência."
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ae7c570b-8131-4cf5-ba5b-a1090f0190bd"
+      }
+    },
+    "owner": "edensantos"
+  }
+}
