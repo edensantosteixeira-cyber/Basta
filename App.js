@@ -16,7 +16,7 @@ import CalculadoraCamuflada from './CalculadoraCamuflada';
 import MapaDelegacias from './MapaDelegacias';
 
 // ─── LOGO ─────────────────────────────────────────────────────
-const LOGO = require('./assets/basta_logo.png.png');
+const LOGO = require('./assets/basta_logo.png');
 
 const ROXO     = '#6B3FA0';
 const ROXO_ESC = '#3A1F6E';
