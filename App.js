@@ -920,4 +920,4 @@ const s = StyleSheet.create({
   leiTxt: { flex: 1, fontSize: 13, color: '#4A2D3A', lineHeight: 20 },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
-});
+}); 
