@@ -4,7 +4,6 @@ import {
   Linking, Alert, Animated, ScrollView, StatusBar, TextInput,
   Image, Modal, Switch, ActivityIndicator, Platform, Share, Vibration, AppState
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Crypto from 'expo-crypto';
@@ -387,14 +386,14 @@ export default function App() {
   if (tela === 'mapa') return <MapaDelegacias onVoltar={() => setTela('home')} />;
 
   const renderHeader = (titulo, subtitulo) => (
-    <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.telaHeader}>
+    <View>
       <TouchableOpacity onPress={() => setTela('home')} style={s.voltarBtn}><Text style={s.voltarTxt}>← Voltar</Text></TouchableOpacity>
       <View style={s.telaLogoRow}>
         <LogoBasta size={32} />
         <Text style={s.telaTitulo}>{titulo}</Text>
       </View>
       {subtitulo ? <Text style={s.telaSlogan}>{subtitulo}</Text> : null}
-    </LinearGradient>
+    </View>
   );
 
   const ModalEvidencia = () => {
@@ -469,9 +468,9 @@ export default function App() {
             </View>
           )}
           <TouchableOpacity onPress={salvarRelato} disabled={salvando} style={{ marginBottom: 12 }}>
-            <LinearGradient colors={[ROXO_MED, ROXO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnGrad}>
+            <View>
               <Text style={s.btnGradTxt}>{salvando ? 'Blindando...' : '🔒 Salvar com blindagem'}</Text>
-            </LinearGradient>
+            </View>
           </TouchableOpacity>
           <View style={s.dicaBackup}><Text style={s.dicaBackupTxt}>💡 Após salvar, toque em "📤 Salvar evidência" para enviar cópia por e-mail ou WhatsApp.</Text></View>
           {itens.length === 0 ? (
@@ -502,9 +501,9 @@ export default function App() {
                 </View>
               )}
               <TouchableOpacity onPress={() => setModalEvidencia(item)} style={{ marginTop: 10 }}>
-                <LinearGradient colors={[ROXO_MED, ROXO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnGrad}>
+                <View>
                   <Text style={s.btnGradTxt}>📤 Salvar evidência</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
           ))}
@@ -536,11 +535,11 @@ export default function App() {
         <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
         {renderHeader('Seus Direitos', 'Conheça as leis que te protegem')}
         <TouchableOpacity onPress={() => Linking.openURL('tel:180')} style={{ marginHorizontal: 16, marginTop: 16 }}>
-          <LinearGradient colors={[ROXO_MED, ROXO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.ligue180}>
+          <View>
             <Text style={s.ligue180Num}>180</Text>
             <View><Text style={s.ligue180Label}>Central da Mulher</Text><Text style={s.ligue180Sub}>Gratuito • 24h • Toque para ligar</Text></View>
             <Text style={{ marginLeft: 'auto', fontSize: 24 }}>📞</Text>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
         <ScrollView style={s.conteudo}>
           {leis.map((lei, i) => <LeiCard key={i} lei={lei} />)}
@@ -562,18 +561,18 @@ export default function App() {
             <TextInput style={s.input} placeholder="Nome do contato" placeholderTextColor="#C0A0A8" value={tempNome} onChangeText={setTempNome} />
             <TextInput style={s.input} placeholder="Telefone com DDD (ex: 31999991234)" placeholderTextColor="#C0A0A8" value={tempTel} onChangeText={setTempTel} keyboardType="phone-pad" />
             <TouchableOpacity onPress={salvarNovoContato}>
-              <LinearGradient colors={[ROXO_MED, ROXO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnGrad}>
+              <View>
                 <Text style={s.btnGradTxt}>Salvar contato</Text>
-              </LinearGradient>
+              </View>
             </TouchableOpacity>
           </View>
           {listaContatos.length === 0 ? (
             <View style={s.emptyBox}><Text style={s.emptyIco}>👤</Text><Text style={s.emptyTxt}>Nenhum contato ainda.</Text><Text style={s.emptySubTxt}>Adicione alguém de confiança acima.</Text></View>
           ) : listaContatos.map(c => (
             <View key={c.id} style={s.contatoCard}>
-              <LinearGradient colors={[ROXO_MED, ROXO]} style={s.contatoAvatar}>
+              <View style={s.contatoAvatar}>
                 <Text style={s.contatoAvatarTxt}>{c.nome.charAt(0).toUpperCase()}</Text>
-              </LinearGradient>
+              </View>
               <View style={{ flex: 1 }}><Text style={s.contatoNome}>{c.nome}</Text><Text style={s.contatoTel}>📱 {c.tel}</Text></View>
               <TouchableOpacity onPress={() => excluirContato(c.id)} style={s.lixeiraBtn}><Text style={s.lixeiraIco}>🗑️</Text></TouchableOpacity>
             </View>
@@ -590,7 +589,7 @@ export default function App() {
     <SafeAreaView style={s.base}>
       <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
 
-      <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
+      <View>
         <View style={s.logoRow}>
           <LogoBasta size={52} />
           <Text style={s.headerNome}>Basta.</Text>
@@ -603,7 +602,7 @@ export default function App() {
             {fraseCodigoAtiva ? ' • 🗣 Escutando' : ''}
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
         {sosAtivado && (
@@ -706,22 +705,22 @@ export default function App() {
             <View style={s.fraseAdicionarRow}>
               <TextInput style={s.fraseNovaInput} value={novaFrase} onChangeText={setNovaFrase} placeholder="+ Adicionar minha frase personalizada..." placeholderTextColor="#bbb" />
               <TouchableOpacity onPress={adicionarFrase}>
-                <LinearGradient colors={[ROXO_MED, ROXO]} style={s.fraseAddBtn}>
+                <View style={s.fraseAddBtn}>
                   <Text style={s.fraseAddTxt}>+</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </View>
             <View style={s.fraseAviso}><Text style={s.fraseAvisoTxt}>⚠️ Ao detectar qualquer frase, o SOS é enviado imediatamente, sem confirmação.</Text></View>
           </View>
         )}
 
-        <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.banner}>
+        <View>
           <View style={{ alignItems: 'center', marginBottom: 10 }}>
             <LogoBasta size={64} />
           </View>
           <Text style={s.bannerTxt}>Proteção completa no seu bolso</Text>
           <Text style={s.bannerSub}>Mais que um app. Um suporte real.</Text>
-        </LinearGradient>
+        </View>
 
       </ScrollView>
     </SafeAreaView>
