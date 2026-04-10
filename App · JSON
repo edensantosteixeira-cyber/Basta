@@ -29,7 +29,8 @@
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.VIBRATE",
-        "android.permission.SEND_SMS"
+        "android.permission.SEND_SMS",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "plugins": [
@@ -55,11 +56,7 @@
         }
       ]
     ],
-    "extra": {
-      "eas": {
-        "projectId": "ae7c570b-8131-4cf5-ba5b-a1090f0190bd"
-      }
-    },
-    "owner": "edensantos"
+    "owner": "basta.app",
+    "ios": {}
   }
-}
+} 
