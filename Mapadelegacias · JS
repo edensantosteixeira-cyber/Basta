@@ -11,7 +11,7 @@ const ROXO     = '#6B3FA0';
 const ROSE     = '#C8335A';
 const GRAD     = ['#3A1F6E', '#6B3FA0', '#8B55C0', '#5A2D8A'];
 
-const DELEGACIAS = [
+const EMERGENCIAS = [
   { nome: 'DEAM - Delegacia Especializada de Atendimento à Mulher', tel: '190', tipo: 'especializada' },
   { nome: 'DDM - Delegacia de Defesa da Mulher', tel: '190', tipo: 'especializada' },
   { nome: 'Delegacia de Polícia Civil', tel: '197', tipo: 'civil' },
@@ -24,17 +24,19 @@ const DELEGACIAS = [
 export default function MapaDelegacias({ onVoltar }) {
   const [carregando, setCarregando] = useState(false);
   const [cidade, setCidade] = useState('');
+  const [coords, setCoords] = useState(null);
 
   useEffect(() => {
-    obterCidade();
+    obterLocalizacao();
   }, []);
 
-  const obterCidade = async () => {
+  const obterLocalizacao = async () => {
     try {
       setCarregando(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status === 'granted') {
-        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Low });
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+        setCoords({ lat: loc.coords.latitude, lng: loc.coords.longitude });
         const [endereco] = await Location.reverseGeocodeAsync({
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
@@ -49,9 +51,33 @@ export default function MapaDelegacias({ onVoltar }) {
     }
   };
 
-  const abrirMaps = () => {
-    const query = encodeURIComponent('delegacia da mulher ' + cidade);
-    Linking.openURL(`https://www.google.com/maps/search/${query}`);
+  const abrirMapaDEAM = () => {
+    if (coords) {
+      const url = `https://www.google.com/maps/search/delegacia+da+mulher/@${coords.lat},${coords.lng},14z`;
+      Linking.openURL(url);
+    } else {
+      const query = encodeURIComponent('delegacia da mulher ' + cidade);
+      Linking.openURL(`https://www.google.com/maps/search/${query}`);
+    }
+  };
+
+  const abrirMapaDelegacias = () => {
+    if (coords) {
+      const url = `https://www.google.com/maps/search/delegacia+de+policia/@${coords.lat},${coords.lng},14z`;
+      Linking.openURL(url);
+    } else {
+      const query = encodeURIComponent('delegacia de policia ' + cidade);
+      Linking.openURL(`https://www.google.com/maps/search/${query}`);
+    }
+  };
+
+  const abrirRotaUPA = () => {
+    if (coords) {
+      const url = `https://www.google.com/maps/search/UPA+hospital/@${coords.lat},${coords.lng},14z`;
+      Linking.openURL(url);
+    } else {
+      Linking.openURL(`https://www.google.com/maps/search/UPA`);
+    }
   };
 
   const ligar = (tel) => Linking.openURL(`tel:${tel}`);
@@ -83,19 +109,33 @@ export default function MapaDelegacias({ onVoltar }) {
 
       <ScrollView style={s.conteudo}>
 
-        {/* Botão buscar no maps */}
-        <TouchableOpacity onPress={abrirMaps} style={{ marginBottom: 16 }}>
-          <LinearGradient colors={[ROXO, '#8B55C0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnMaps}>
+        {/* Botões de mapa */}
+        <Text style={s.sectionTitle}>🗺️ Abrir mapa próximo a você</Text>
+
+        <TouchableOpacity onPress={abrirMapaDEAM} style={{ marginBottom: 10 }}>
+          <LinearGradient colors={['#C8335A', '#A0204A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnMapa}>
             {carregando
               ? <ActivityIndicator color="white" size="small" />
-              : <Text style={s.btnMapsTxt}>🗺️  Buscar delegacias no mapa</Text>
+              : <Text style={s.btnMapaTxt}>🏛️  Delegacias da Mulher (DEAM) próximas</Text>
             }
           </LinearGradient>
         </TouchableOpacity>
 
-        <Text style={s.sectionTitle}>Números de emergência</Text>
+        <TouchableOpacity onPress={abrirMapaDelegacias} style={{ marginBottom: 10 }}>
+          <LinearGradient colors={[ROXO, '#8B55C0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnMapa}>
+            <Text style={s.btnMapaTxt}>👮  Delegacias de Polícia próximas</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
-        {DELEGACIAS.map((d, i) => (
+        <TouchableOpacity onPress={abrirRotaUPA} style={{ marginBottom: 20 }}>
+          <LinearGradient colors={['#1E7A5A', '#2AAA7A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnMapa}>
+            <Text style={s.btnMapaTxt}>🏥  UPA / Hospital próximo</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <Text style={s.sectionTitle}>📞 Números de emergência</Text>
+
+        {EMERGENCIAS.map((d, i) => (
           <TouchableOpacity key={i} style={s.card} onPress={() => ligar(d.tel)}>
             <Text style={s.cardIco}>{icone(d.tipo)}</Text>
             <View style={{ flex: 1 }}>
@@ -129,9 +169,9 @@ const s = StyleSheet.create({
   subtitulo: { color: 'rgba(255,255,255,0.8)', fontSize: 13 },
   cidade: { color: 'rgba(255,255,255,0.9)', fontSize: 12, marginTop: 8, fontWeight: '600' },
   conteudo: { flex: 1, padding: 16 },
-  btnMaps: { borderRadius: 14, padding: 16, alignItems: 'center' },
-  btnMapsTxt: { color: 'white', fontSize: 15, fontWeight: '700' },
   sectionTitle: { fontSize: 13, fontWeight: '700', color: ROXO, marginBottom: 12, letterSpacing: 0.5 },
+  btnMapa: { borderRadius: 14, padding: 16, alignItems: 'center' },
+  btnMapaTxt: { color: 'white', fontSize: 15, fontWeight: '700' },
   card: {
     backgroundColor: 'white', borderRadius: 14, padding: 14,
     flexDirection: 'row', alignItems: 'center', gap: 12,
@@ -147,4 +187,4 @@ const s = StyleSheet.create({
   },
   dicaTitulo: { fontSize: 14, fontWeight: '700', color: ROXO, marginBottom: 10 },
   dicaTxt: { fontSize: 13, color: '#4A2D7A', lineHeight: 20 },
-});
+}); 
