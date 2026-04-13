@@ -192,9 +192,10 @@ export default function App() {
     try {
       const { ExpoSpeechRecognitionModule } = require('expo-speech-recognition');
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+      if (!perm.granted) { Alert.alert("Permiss\u00E3o necess\u00E1ria", "Precisamos do microfone."); setFraseCodigoAtiva(false); return; }
       ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', continuous: true, interimResults: true });
       ExpoSpeechRecognitionModule.addListener('result', async (event) => {
-        const transcript = event.results.map(r => r[0].transcript.toLowerCase().trim()).join(' ');
+        const transcript = event.results.map(r => r.transcript.toLowerCase().trim()).join(' ');
         setVozStatus('Escutando: "' + transcript.slice(-35) + '"');
         const detectada = frases.find(f => transcript.includes(f));
         if (detectada) {
