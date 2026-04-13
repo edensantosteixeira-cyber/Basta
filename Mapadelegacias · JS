@@ -1,3 +1,4 @@
+cat > /workspaces/Basta/MapaDelegacias.js << 'ENDOFFILE'
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
@@ -54,7 +55,7 @@ export default function MapaDelegacias({ onVoltar }) {
           longitude: loc.coords.longitude,
         });
         if (endereco) {
-          setCidade(`${endereco.city || endereco.subregion || ''}, ${endereco.region || ''}`);
+          setCidade(String(endereco.city || endereco.subregion || '') + ', ' + String(endereco.region || ''));
         }
       }
     } catch (e) {
@@ -65,29 +66,29 @@ export default function MapaDelegacias({ onVoltar }) {
 
   const abrirMapaDEAM = () => {
     if (coords) {
-      Linking.openURL(`https://www.google.com/maps/search/delegacia+da+mulher/@${coords.lat},${coords.lng},14z`);
+      Linking.openURL('https://www.google.com/maps/search/delegacia+da+mulher/@' + coords.lat + ',' + coords.lng + ',14z');
     } else {
-      Linking.openURL(`https://www.google.com/maps/search/${encodeURIComponent('delegacia da mulher ' + cidade)}`);
+      Linking.openURL('https://www.google.com/maps/search/' + encodeURIComponent('delegacia da mulher ' + cidade));
     }
   };
 
   const abrirMapaDelegacias = () => {
     if (coords) {
-      Linking.openURL(`https://www.google.com/maps/search/delegacia+de+policia/@${coords.lat},${coords.lng},14z`);
+      Linking.openURL('https://www.google.com/maps/search/delegacia+de+policia/@' + coords.lat + ',' + coords.lng + ',14z');
     } else {
-      Linking.openURL(`https://www.google.com/maps/search/${encodeURIComponent('delegacia de policia ' + cidade)}`);
+      Linking.openURL('https://www.google.com/maps/search/' + encodeURIComponent('delegacia de policia ' + cidade));
     }
   };
 
   const abrirRotaUPA = () => {
     if (coords) {
-      Linking.openURL(`https://www.google.com/maps/search/UPA+hospital/@${coords.lat},${coords.lng},14z`);
+      Linking.openURL('https://www.google.com/maps/search/UPA+hospital/@' + coords.lat + ',' + coords.lng + ',14z');
     } else {
-      Linking.openURL(`https://www.google.com/maps/search/UPA`);
+      Linking.openURL('https://www.google.com/maps/search/UPA');
     }
   };
 
-  const ligar = (tel) => Linking.openURL(`tel:${tel}`);
+  const ligar = (tel) => Linking.openURL('tel:' + tel);
 
   const icone = (tipo) => {
     switch (tipo) {
@@ -118,7 +119,6 @@ export default function MapaDelegacias({ onVoltar }) {
       </LinearGradient>
 
       <ScrollView style={s.conteudo}>
-
         <Text style={s.sectionTitle}>🗺️ Abrir mapa próximo a você</Text>
 
         <TouchableOpacity onPress={abrirMapaDEAM} style={{ marginBottom: 10 }}>
@@ -128,4 +128,78 @@ export default function MapaDelegacias({ onVoltar }) {
               : <Text style={s.btnMapaTxt}>🏛️  Delegacias da Mulher (DEAM) próximas</Text>
             }
           </LinearGradient>
-        </TouchableOpac 
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={abrirMapaDelegacias} style={{ marginBottom: 10 }}>
+          <LinearGradient colors={[ROXO, '#8B55C0']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnMapa}>
+            <Text style={s.btnMapaTxt}>👮  Delegacias de Polícia próximas</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={abrirRotaUPA} style={{ marginBottom: 20 }}>
+          <LinearGradient colors={['#1E7A5A', '#2AAA7A']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnMapa}>
+            <Text style={s.btnMapaTxt}>🏥  UPA / Hospital próximo</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        <Text style={s.sectionTitle}>📞 Números de emergência</Text>
+
+        {EMERGENCIAS.map((d, i) => (
+          <TouchableOpacity key={i} style={s.card} onPress={() => ligar(d.tel)}>
+            <Text style={s.cardIco}>{icone(d.tipo)}</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.cardNome}>{d.nome}</Text>
+              <Text style={s.cardTel}>📞 {d.tel} — Toque para ligar</Text>
+            </View>
+          </TouchableOpacity>
+        ))}
+
+        <View style={s.dicaCard}>
+          <Text style={s.dicaTitulo}>💡 Dica importante</Text>
+          <Text style={s.dicaTxt}>
+            A DEAM (Delegacia Especializada de Atendimento à Mulher) é o local mais indicado para registrar B.O. em casos de violência doméstica.
+          </Text>
+          <Text style={s.dicaTxt}>
+            Você NÃO precisa de advogado para registrar B.O. ou pedir medida protetiva.
+          </Text>
+          <Text style={s.dicaTxt}>
+            O atendimento deve ser feito por agente feminina em sala reservada.
+          </Text>
+        </View>
+
+        <View style={{ height: 32 }} />
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const s = StyleSheet.create({
+  base: { flex: 1, backgroundColor: '#F9F3F6' },
+  header: { paddingTop: 52, paddingHorizontal: 20, paddingBottom: 24 },
+  voltarBtn: { marginBottom: 10 },
+  voltarTxt: { color: 'rgba(255,255,255,0.7)', fontSize: 14 },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  titulo: { fontSize: 30, fontWeight: 'bold', fontStyle: 'italic', color: 'white' },
+  subtitulo: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
+  cidade: { color: 'rgba(255,255,255,0.9)', fontSize: 12, marginTop: 8, fontWeight: '600' },
+  conteudo: { flex: 1, padding: 16 },
+  sectionTitle: { fontSize: 13, fontWeight: '700', color: '#6B3FA0', marginBottom: 12, letterSpacing: 0.5 },
+  btnMapa: { borderRadius: 14, padding: 16, alignItems: 'center' },
+  btnMapaTxt: { color: 'white', fontSize: 15, fontWeight: '700' },
+  card: {
+    backgroundColor: 'white', borderRadius: 14, padding: 14,
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    marginBottom: 10, elevation: 2,
+    borderLeftWidth: 4, borderLeftColor: '#6B3FA0',
+  },
+  cardIco: { fontSize: 26 },
+  cardNome: { fontSize: 13, fontWeight: '600', color: '#1A0E14', marginBottom: 3 },
+  cardTel: { fontSize: 12, color: '#C8335A', fontWeight: '500' },
+  dicaCard: {
+    backgroundColor: '#EDE5F8', borderRadius: 14, padding: 16,
+    marginTop: 8, borderWidth: 1, borderColor: 'rgba(107,63,160,0.2)',
+  },
+  dicaTitulo: { fontSize: 14, fontWeight: '700', color: '#6B3FA0', marginBottom: 10 },
+  dicaTxt: { fontSize: 13, color: '#4A2D7A', lineHeight: 20, marginBottom: 8 },
+});
+ENDOFFILE 
