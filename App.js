@@ -192,29 +192,25 @@ export default function App() {
     try {
       const { ExpoSpeechRecognitionModule } = require('expo-speech-recognition');
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!perm.granted) { Alert.alert('Permissão necessária', 'Precisamos do microfone.'); setFraseCodigoAtiva(false); return; }
-      
       ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', continuous: true, interimResults: true });
-      
       ExpoSpeechRecognitionModule.addListener('result', async (event) => {
         const transcript = event.results.map(r => r[0].transcript.toLowerCase().trim()).join(' ');
-        setVozStatus(`Escutando: "${transcript.slice(-35)}"`);
+        setVozStatus('Escutando: "' + transcript.slice(-35) + '"');
         const detectada = frases.find(f => transcript.includes(f));
         if (detectada) {
           ExpoSpeechRecognitionModule.stop();
           setVozStatus('🚨 Frase detectada! Acionando SOS...');
-          Vibration.vibrate([0, 300, 100, 300, 100, 500]);
+          Vibration.vibrate([0, 500, 200, 500, 200, 800]);
+          try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
           await acionarSOSCompleto();
           setFraseCodigoAtiva(false); setVozStatus('');
         }
       });
-      
       ExpoSpeechRecognitionModule.addListener('end', () => {
         if (fraseCodigoAtivaRef.current) {
           setTimeout(() => ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', continuous: true, interimResults: true }), 500);
         }
       });
-      
       vozRecognition.current = ExpoSpeechRecognitionModule;
       setVozStatus('Escutando...');
     } catch (e) {
@@ -234,40 +230,34 @@ export default function App() {
   };
 
   const acionarSOSCompleto = async () => {
-    Vibration.vibrate([0, 300, 100, 300, 100, 500]);
+    Vibration.vibrate([0, 500, 200, 500, 200, 800]);
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
     setSosAtivado(true); setSosMensagem('🆘 Acionando ajuda...');
-    if (!localizacaoAtiva) await iniciarLocalizacaoContinua();
     const gps = await obterLocalizacaoAtual();
-    const linkMaps = gps
-      ? `https://maps.google.com/?q=${gps.latitude},${gps.longitude}`
-      : 'Localizacao nao disponivel';
-
-    const msgWhats = `SOS EMERGENCIA - Preciso de ajuda AGORA! Localizacao: ${linkMaps} - App Basta`;
-
+    const linkMaps = gps ? 'https://maps.google.com/?q=' + gps.latitude + ',' + gps.longitude : 'Localizacao nao disponivel';
+    const msgTexto = 'SOS EMERGENCIA - Preciso de ajuda AGORA! Localizacao: ' + linkMaps + ' - App Basta';
     let enviados = 0;
     for (let i = 0; i < listaContatos.length; i++) {
       const c = listaContatos[i];
-      setSosMensagem(`📤 Enviando para ${c.nome}... (${i + 1}/${listaContatos.length})`);
-
-      // Limpa o número e garante formato +55DDDNUMERO
+      setSosMensagem('📤 Enviando para ' + c.nome + '... (' + (i + 1) + '/' + listaContatos.length + ')');
       const tel = c.tel.replace(/\D/g, '');
-      const telFull = tel.startsWith('55') ? tel : `55${tel}`;
-
-      // WhatsApp vai DIRETO no número salvo quando tem o + na frente
-      // Formato correto: phone=+5531999991234
+      const telFull = tel.startsWith('55') ? tel : '55' + tel;
       try {
-        const url = `whatsapp://send?phone=%2B${telFull}&text=${encodeURIComponent(msgWhats)}`;
+        const smsOk = await SMS.isAvailableAsync();
+        if (smsOk) await SMS.sendSMSAsync([c.tel], msgTexto);
+      } catch (e) {}
+      Vibration.vibrate(150);
+      await new Promise(r => setTimeout(r, 800));
+      try {
+        const url = 'whatsapp://send?phone=%2B' + telFull + '&text=' + encodeURIComponent(msgTexto);
         await Linking.openURL(url);
         await new Promise(r => setTimeout(r, 1500));
       } catch (e) {}
-
-      Vibration.vibrate(150);
+      Vibration.vibrate([0, 150, 100, 150]);
       enviados++;
     }
-
-    setSosMensagem(`✅ ${enviados} contato${enviados !== 1 ? 's' : ''} alertado${enviados !== 1 ? 's' : ''}!`);
-    Vibration.vibrate([0, 200, 100, 200]);
+    setSosMensagem('✅ ' + enviados + ' contato' + (enviados !== 1 ? 's' : '') + ' alertado' + (enviados !== 1 ? 's' : '') + '!');
+    Vibration.vibrate([0, 300, 100, 300, 100, 500]);
     setTimeout(() => { setSosAtivado(false); setSosMensagem(''); }, 4000);
   };
 
