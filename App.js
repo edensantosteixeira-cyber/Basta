@@ -201,7 +201,7 @@ export default function App() {
         if (detectada) {
           ExpoSpeechRecognitionModule.stop();
           setVozStatus('🚨 Frase detectada! Acionando SOS...');
-          Vibration.vibrate([0, 500, 200, 500, 200, 800]);
+          Vibration.vibrate(1000);
           try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
           await acionarSOSCompleto();
           setFraseCodigoAtiva(false); setVozStatus('');
@@ -231,7 +231,7 @@ export default function App() {
   };
 
   const acionarSOSCompleto = async () => {
-    Vibration.vibrate([0, 500, 200, 500, 200, 800]);
+    Vibration.vibrate(1000);
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
     setSosAtivado(true); setSosMensagem('🆘 Acionando ajuda...');
     const gps = await obterLocalizacaoAtual();
@@ -244,21 +244,15 @@ export default function App() {
       const tel = c.tel.replace(/\D/g, '');
       const telFull = tel.startsWith('55') ? tel : '55' + tel;
       try {
-        const smsOk = await SMS.isAvailableAsync();
-        if (smsOk) await SMS.sendSMSAsync([c.tel], msgTexto);
-      } catch (e) {}
-      Vibration.vibrate(150);
-      await new Promise(r => setTimeout(r, 800));
-      try {
         const url = 'whatsapp://send?phone=%2B' + telFull + '&text=' + encodeURIComponent(msgTexto);
         await Linking.openURL(url);
         await new Promise(r => setTimeout(r, 1500));
       } catch (e) {}
-      Vibration.vibrate([0, 150, 100, 150]);
+      Vibration.vibrate(300);
       enviados++;
     }
     setSosMensagem('✅ ' + enviados + ' contato' + (enviados !== 1 ? 's' : '') + ' alertado' + (enviados !== 1 ? 's' : '') + '!');
-    Vibration.vibrate([0, 300, 100, 300, 100, 500]);
+    Vibration.vibrate(500);
     setTimeout(() => { setSosAtivado(false); setSosMensagem(''); }, 4000);
   };
 
@@ -607,7 +601,7 @@ export default function App() {
         <View style={s.statusBar}>
           <View style={[s.statusDot, localizacaoAtiva && { backgroundColor: '#60A5FA' }]} />
           <Text style={s.statusTxt}>
-            {localizacaoAtiva ? '📍 Rastreando' : 'Segura agora'} • {listaContatos.length} contato{listaContatos.length !== 1 ? 's' : ''}
+            {localizacaoAtiva ? '📍 Rastreando' : 'Você não está sozinha'} • {listaContatos.length} contato{listaContatos.length !== 1 ? 's' : ''}
             {fraseCodigoAtiva ? ' • 🗣 Escutando' : ''}
           </Text>
         </View>
