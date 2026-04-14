@@ -385,7 +385,7 @@ export default function App() {
     Alert.alert(valido ? '✅ Evidência íntegra' : '⚠️ Registro alterado', valido ? 'Hash SHA-256 confere. Evidência válida.' : 'Hash não confere. Possível adulteração.');
   };
 
-  if (!desbloqueado) return <CalculadoraCamuflada onDesbloquear={() => setDesbloqueado(true)} />;
+  if (!desbloqueado) return <CalculadoraCamuflada onDesbloquear={() => { setDesbloqueado(true); carregarDados(); }} />;
   if (tela === 'mapa') return <MapaDelegacias onVoltar={() => setTela('home')} />;
 
   const renderHeader = (titulo, subtitulo) => (
