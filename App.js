@@ -594,6 +594,7 @@ export default function App() {
       <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
 
       <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
+        <TouchableOpacity onPress={() => setDesbloqueado(false)} style={s.voltarBtn}><Text style={s.voltarTxt}>← Voltar</Text></TouchableOpacity>
         <View style={s.logoRow}>
           <LogoBasta size={52} />
           <Text style={s.headerNome}>Basta.</Text>
