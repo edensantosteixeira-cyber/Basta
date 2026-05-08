@@ -1,25 +1,22 @@
 {
   "expo": {
-    "name": "Calculadora",
+    "name": "Basta",
     "slug": "basta",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#3A1F6E"
+      "backgroundColor": "#FFFFFF"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#3A1F6E"
       },
       "package": "com.edensantos.calculadora",
       "versionCode": 1,
-      "compileSdkVersion": 34,
-      "targetSdkVersion": 34,
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -30,7 +27,9 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.VIBRATE",
         "android.permission.SEND_SMS",
-        "android.permission.MODIFY_AUDIO_SETTINGS"
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
       ]
     },
     "plugins": [
@@ -54,9 +53,27 @@
         {
           "microphonePermission": "Permite gravar áudio secretamente como evidência."
         }
+      ],
+      "expo-mail-composer",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "O app Basta usa o microfone para detectar sua frase de emergência em segundo plano.",
+          "speechRecognitionPermission": "O app Basta escuta sua frase-código para acionar o SOS automaticamente.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"],
+          "foregroundService": {
+            "notificationTitle": "Basta — Proteção ativa",
+            "notificationDescription": "Monitorando frase de segurança em segundo plano."
+          }
+        }
       ]
     ],
-    "owner": "basta.app",
-    "ios": {}
+    "owner": "app.basta",
+    "ios": {},
+    "extra": {
+      "eas": {
+        "projectId": "e14285e5-3bc0-46e9-b38a-578e14b34c8f"
+      }
+    }
   }
 } 
