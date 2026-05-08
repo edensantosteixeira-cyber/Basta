@@ -1,4 +1,4 @@
- import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   Linking, Alert, Animated, ScrollView, StatusBar, TextInput,
@@ -192,8 +192,29 @@ export default function App() {
     try {
       const { ExpoSpeechRecognitionModule } = require('expo-speech-recognition');
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!perm.granted) { Alert.alert("Permiss\u00E3o necess\u00E1ria", "Precisamos do microfone."); setFraseCodigoAtiva(false); return; }
-      ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', continuous: true, interimResults: true });
+      if (!perm.granted) { Alert.alert("Permissão necessária", "Precisamos do microfone."); setFraseCodigoAtiva(false); return; }
+
+      // Inicia com foreground service para funcionar em segundo plano
+      ExpoSpeechRecognitionModule.start({
+        lang: 'pt-BR',
+        continuous: true,
+        interimResults: true,
+        androidIntentOptions: {
+          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 10000,
+          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 10000,
+        },
+        requiresOnDeviceRecognition: false,
+        addsPunctuation: false,
+        contextualStrings: frases,
+        // Foreground service: mantém escuta mesmo com app em segundo plano
+        androidRecognitionServicePackage: 'com.google.android.googlequicksearchbox',
+        foregroundService: {
+          notificationTitle: 'Basta — Proteção ativa',
+          notificationDescription: 'Monitorando frase de segurança em segundo plano.',
+          notificationColor: '#6B3FA0',
+        },
+      });
+
       ExpoSpeechRecognitionModule.addListener('result', async (event) => {
         const transcript = event.results.map(r => r.transcript.toLowerCase().trim()).join(' ');
         setVozStatus('Escutando: "' + transcript.slice(-35) + '"');
@@ -207,16 +228,28 @@ export default function App() {
           setFraseCodigoAtiva(false); setVozStatus('');
         }
       });
+
       ExpoSpeechRecognitionModule.addListener('end', () => {
         if (fraseCodigoAtivaRef.current) {
-          setTimeout(() => ExpoSpeechRecognitionModule.start({ lang: 'pt-BR', continuous: true, interimResults: true }), 500);
+          setTimeout(() => ExpoSpeechRecognitionModule.start({
+            lang: 'pt-BR',
+            continuous: true,
+            interimResults: true,
+            contextualStrings: frases,
+            foregroundService: {
+              notificationTitle: 'Basta — Proteção ativa',
+              notificationDescription: 'Monitorando frase de segurança em segundo plano.',
+              notificationColor: '#6B3FA0',
+            },
+          }), 500);
         }
       });
+
       vozRecognition.current = ExpoSpeechRecognitionModule;
       setVozStatus('Escutando...');
     } catch (e) {
       setVozStatus('Escuta ativa');
-      Alert.alert('🗣 Escuta ativada', 'SOS será enviado ao detectar sua frase-código.', [{ text: 'Entendido' }]);
+      Alert.alert('🗣 Escuta ativada', 'SOS será enviado ao detectar sua frase-código, mesmo com o app em segundo plano.', [{ text: 'Entendido' }]);
     }
   };
 
@@ -929,4 +962,4 @@ const s = StyleSheet.create({
   leiTxt: { flex: 1, fontSize: 13, color: '#4A2D3A', lineHeight: 20 },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
-});
+}); 
