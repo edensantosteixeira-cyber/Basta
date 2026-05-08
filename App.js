@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   Linking, Alert, Animated, ScrollView, StatusBar, TextInput,
@@ -594,7 +594,9 @@ export default function App() {
       <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
 
       <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
-        <TouchableOpacity onPress={() => setDesbloqueado(false)} style={s.voltarBtn}><Text style={s.voltarTxt}>← Voltar</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setDesbloqueado(false)} style={s.btnVoltarCalc}>
+          <Text style={s.btnVoltarCalcTxt}>← Calculadora</Text>
+        </TouchableOpacity>
         <View style={s.logoRow}>
           <LogoBasta size={52} />
           <Text style={s.headerNome}>Basta.</Text>
@@ -839,6 +841,9 @@ const s = StyleSheet.create({
   fraseAviso: { backgroundColor: '#FFF0F0', borderRadius: 10, padding: 10, marginTop: 12, borderWidth: 1, borderColor: 'rgba(200,51,90,0.2)' },
   fraseAvisoTxt: { fontSize: 11, color: '#9E1F42', lineHeight: 16 },
 
+  btnVoltarCalc: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 5, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 20, marginBottom: 6 },
+  btnVoltarCalcTxt: { color: 'rgba(255,255,255,0.90)', fontSize: 12, fontWeight: '600' },
+
   banner: { margin: 16, borderRadius: 18, padding: 22, marginBottom: 32, alignItems: 'center' },
   bannerTxt: { color: 'white', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
   bannerSub: { color: 'rgba(255,255,255,0.88)', fontSize: 14, fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
@@ -924,4 +929,4 @@ const s = StyleSheet.create({
   leiTxt: { flex: 1, fontSize: 13, color: '#4A2D3A', lineHeight: 20 },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
-}); 
+});
