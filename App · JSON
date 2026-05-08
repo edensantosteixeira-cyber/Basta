@@ -54,7 +54,6 @@
           "microphonePermission": "Permite gravar áudio secretamente como evidência."
         }
       ],
-      "expo-mail-composer",
       [
         "expo-speech-recognition",
         {
