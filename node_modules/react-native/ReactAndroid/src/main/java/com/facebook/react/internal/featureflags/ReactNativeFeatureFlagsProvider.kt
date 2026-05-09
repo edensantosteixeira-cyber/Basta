@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @generated SignedSource<<995c1c3035757935dc7a4c4d6778e43e>>
+ * @generated SignedSource<<4ed94743d9eafd0be32bb04471a18fc6>>
  */
 
 /**
@@ -29,13 +29,13 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun cxxNativeAnimatedEnabled(): Boolean
 
+  @DoNotStrip public fun defaultTextToOverflowHidden(): Boolean
+
   @DoNotStrip public fun disableEarlyViewCommandExecution(): Boolean
 
   @DoNotStrip public fun disableImageViewPreallocationAndroid(): Boolean
 
   @DoNotStrip public fun disableMountItemReorderingAndroid(): Boolean
-
-  @DoNotStrip public fun disableOldAndroidAttachmentMetricsWorkarounds(): Boolean
 
   @DoNotStrip public fun disableSubviewClippingAndroid(): Boolean
 
@@ -68,6 +68,8 @@ public interface ReactNativeFeatureFlagsProvider {
   @DoNotStrip public fun enableEagerRootViewAttachment(): Boolean
 
   @DoNotStrip public fun enableExclusivePropsUpdateAndroid(): Boolean
+
+  @DoNotStrip public fun enableFabricCommitBranching(): Boolean
 
   @DoNotStrip public fun enableFabricLogs(): Boolean
 
@@ -103,6 +105,8 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun enableModuleArgumentNSNullConversionIOS(): Boolean
 
+  @DoNotStrip public fun enableMutationObserverByDefault(): Boolean
+
   @DoNotStrip public fun enableNativeCSSParsing(): Boolean
 
   @DoNotStrip public fun enableNetworkEventReporting(): Boolean
@@ -129,11 +133,7 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun enableVirtualViewDebugFeatures(): Boolean
 
-  @DoNotStrip public fun enableVirtualViewRenderState(): Boolean
-
-  @DoNotStrip public fun enableVirtualViewWindowFocusDetection(): Boolean
-
-  @DoNotStrip public fun enableWebPerformanceAPIsByDefault(): Boolean
+  @DoNotStrip public fun fixFindShadowNodeByTagRaceCondition(): Boolean
 
   @DoNotStrip public fun fixMappingOfEventPrioritiesBetweenFabricAndReact(): Boolean
 
@@ -143,7 +143,11 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun fuseboxEnabledRelease(): Boolean
 
+  @DoNotStrip public fun fuseboxFrameRecordingEnabled(): Boolean
+
   @DoNotStrip public fun fuseboxNetworkInspectionEnabled(): Boolean
+
+  @DoNotStrip public fun fuseboxScreenshotCaptureEnabled(): Boolean
 
   @DoNotStrip public fun hideOffscreenVirtualViewsOnIOS(): Boolean
 
@@ -157,23 +161,23 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun preventShadowTreeCommitExhaustion(): Boolean
 
+  @DoNotStrip public fun redBoxV2Android(): Boolean
+
+  @DoNotStrip public fun redBoxV2IOS(): Boolean
+
   @DoNotStrip public fun shouldPressibilityUseW3CPointerEventsForHover(): Boolean
-
-  @DoNotStrip public fun shouldResetClickableWhenRecyclingView(): Boolean
-
-  @DoNotStrip public fun shouldResetOnClickListenerWhenRecyclingView(): Boolean
-
-  @DoNotStrip public fun shouldSetEnabledBasedOnAccessibilityState(): Boolean
-
-  @DoNotStrip public fun shouldSetIsClickableByDefault(): Boolean
 
   @DoNotStrip public fun shouldTriggerResponderTransferOnScrollAndroid(): Boolean
 
   @DoNotStrip public fun skipActivityIdentityAssertionOnHostPause(): Boolean
 
+  @DoNotStrip public fun syncAndroidClipToPaddingWithOverflow(): Boolean
+
   @DoNotStrip public fun traceTurboModulePromiseRejectionsOnAndroid(): Boolean
 
   @DoNotStrip public fun updateRuntimeShadowNodeReferencesOnCommit(): Boolean
+
+  @DoNotStrip public fun updateRuntimeShadowNodeReferencesOnCommitThread(): Boolean
 
   @DoNotStrip public fun useAlwaysAvailableJSErrorHandling(): Boolean
 
@@ -181,9 +185,7 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun useNativeViewConfigsInBridgelessMode(): Boolean
 
-  @DoNotStrip public fun useRawPropsJsiValue(): Boolean
-
-  @DoNotStrip public fun useShadowNodeStateOnClone(): Boolean
+  @DoNotStrip public fun useNestedScrollViewAndroid(): Boolean
 
   @DoNotStrip public fun useSharedAnimatedBackend(): Boolean
 
@@ -193,9 +195,11 @@ public interface ReactNativeFeatureFlagsProvider {
 
   @DoNotStrip public fun useTurboModules(): Boolean
 
+  @DoNotStrip public fun useUnorderedMapInDifferentiator(): Boolean
+
   @DoNotStrip public fun viewCullingOutsetRatio(): Double
 
-  @DoNotStrip public fun virtualViewHysteresisRatio(): Double
+  @DoNotStrip public fun viewTransitionEnabled(): Boolean
 
   @DoNotStrip public fun virtualViewPrerenderRatio(): Double
 }

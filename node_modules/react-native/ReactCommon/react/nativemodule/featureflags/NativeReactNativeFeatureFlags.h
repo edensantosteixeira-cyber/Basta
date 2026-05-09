@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @generated SignedSource<<560b5619790e0d17e76bc3d600ca10d1>>
+ * @generated SignedSource<<ed4a87c5d258ebf5aa61e7d74d1b09be>>
  */
 
 /**
@@ -42,13 +42,13 @@ class NativeReactNativeFeatureFlags
 
   bool cxxNativeAnimatedEnabled(jsi::Runtime& runtime);
 
+  bool defaultTextToOverflowHidden(jsi::Runtime& runtime);
+
   bool disableEarlyViewCommandExecution(jsi::Runtime& runtime);
 
   bool disableImageViewPreallocationAndroid(jsi::Runtime& runtime);
 
   bool disableMountItemReorderingAndroid(jsi::Runtime& runtime);
-
-  bool disableOldAndroidAttachmentMetricsWorkarounds(jsi::Runtime& runtime);
 
   bool disableSubviewClippingAndroid(jsi::Runtime& runtime);
 
@@ -81,6 +81,8 @@ class NativeReactNativeFeatureFlags
   bool enableEagerRootViewAttachment(jsi::Runtime& runtime);
 
   bool enableExclusivePropsUpdateAndroid(jsi::Runtime& runtime);
+
+  bool enableFabricCommitBranching(jsi::Runtime& runtime);
 
   bool enableFabricLogs(jsi::Runtime& runtime);
 
@@ -116,6 +118,8 @@ class NativeReactNativeFeatureFlags
 
   bool enableModuleArgumentNSNullConversionIOS(jsi::Runtime& runtime);
 
+  bool enableMutationObserverByDefault(jsi::Runtime& runtime);
+
   bool enableNativeCSSParsing(jsi::Runtime& runtime);
 
   bool enableNetworkEventReporting(jsi::Runtime& runtime);
@@ -142,11 +146,7 @@ class NativeReactNativeFeatureFlags
 
   bool enableVirtualViewDebugFeatures(jsi::Runtime& runtime);
 
-  bool enableVirtualViewRenderState(jsi::Runtime& runtime);
-
-  bool enableVirtualViewWindowFocusDetection(jsi::Runtime& runtime);
-
-  bool enableWebPerformanceAPIsByDefault(jsi::Runtime& runtime);
+  bool fixFindShadowNodeByTagRaceCondition(jsi::Runtime& runtime);
 
   bool fixMappingOfEventPrioritiesBetweenFabricAndReact(jsi::Runtime& runtime);
 
@@ -156,7 +156,11 @@ class NativeReactNativeFeatureFlags
 
   bool fuseboxEnabledRelease(jsi::Runtime& runtime);
 
+  bool fuseboxFrameRecordingEnabled(jsi::Runtime& runtime);
+
   bool fuseboxNetworkInspectionEnabled(jsi::Runtime& runtime);
+
+  bool fuseboxScreenshotCaptureEnabled(jsi::Runtime& runtime);
 
   bool hideOffscreenVirtualViewsOnIOS(jsi::Runtime& runtime);
 
@@ -170,23 +174,23 @@ class NativeReactNativeFeatureFlags
 
   bool preventShadowTreeCommitExhaustion(jsi::Runtime& runtime);
 
+  bool redBoxV2Android(jsi::Runtime& runtime);
+
+  bool redBoxV2IOS(jsi::Runtime& runtime);
+
   bool shouldPressibilityUseW3CPointerEventsForHover(jsi::Runtime& runtime);
-
-  bool shouldResetClickableWhenRecyclingView(jsi::Runtime& runtime);
-
-  bool shouldResetOnClickListenerWhenRecyclingView(jsi::Runtime& runtime);
-
-  bool shouldSetEnabledBasedOnAccessibilityState(jsi::Runtime& runtime);
-
-  bool shouldSetIsClickableByDefault(jsi::Runtime& runtime);
 
   bool shouldTriggerResponderTransferOnScrollAndroid(jsi::Runtime& runtime);
 
   bool skipActivityIdentityAssertionOnHostPause(jsi::Runtime& runtime);
 
+  bool syncAndroidClipToPaddingWithOverflow(jsi::Runtime& runtime);
+
   bool traceTurboModulePromiseRejectionsOnAndroid(jsi::Runtime& runtime);
 
   bool updateRuntimeShadowNodeReferencesOnCommit(jsi::Runtime& runtime);
+
+  bool updateRuntimeShadowNodeReferencesOnCommitThread(jsi::Runtime& runtime);
 
   bool useAlwaysAvailableJSErrorHandling(jsi::Runtime& runtime);
 
@@ -194,9 +198,7 @@ class NativeReactNativeFeatureFlags
 
   bool useNativeViewConfigsInBridgelessMode(jsi::Runtime& runtime);
 
-  bool useRawPropsJsiValue(jsi::Runtime& runtime);
-
-  bool useShadowNodeStateOnClone(jsi::Runtime& runtime);
+  bool useNestedScrollViewAndroid(jsi::Runtime& runtime);
 
   bool useSharedAnimatedBackend(jsi::Runtime& runtime);
 
@@ -206,9 +208,11 @@ class NativeReactNativeFeatureFlags
 
   bool useTurboModules(jsi::Runtime& runtime);
 
+  bool useUnorderedMapInDifferentiator(jsi::Runtime& runtime);
+
   double viewCullingOutsetRatio(jsi::Runtime& runtime);
 
-  double virtualViewHysteresisRatio(jsi::Runtime& runtime);
+  bool viewTransitionEnabled(jsi::Runtime& runtime);
 
   double virtualViewPrerenderRatio(jsi::Runtime& runtime);
 };

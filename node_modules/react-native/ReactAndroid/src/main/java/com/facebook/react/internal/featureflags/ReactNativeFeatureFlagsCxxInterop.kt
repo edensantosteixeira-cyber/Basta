@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @generated SignedSource<<e3e8ad599dfc9c77d6a79d6c094e8a2b>>
+ * @generated SignedSource<<a648971d8196aa0950b623be31643a14>>
  */
 
 /**
@@ -34,13 +34,13 @@ public object ReactNativeFeatureFlagsCxxInterop {
 
   @DoNotStrip @JvmStatic public external fun cxxNativeAnimatedEnabled(): Boolean
 
+  @DoNotStrip @JvmStatic public external fun defaultTextToOverflowHidden(): Boolean
+
   @DoNotStrip @JvmStatic public external fun disableEarlyViewCommandExecution(): Boolean
 
   @DoNotStrip @JvmStatic public external fun disableImageViewPreallocationAndroid(): Boolean
 
   @DoNotStrip @JvmStatic public external fun disableMountItemReorderingAndroid(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun disableOldAndroidAttachmentMetricsWorkarounds(): Boolean
 
   @DoNotStrip @JvmStatic public external fun disableSubviewClippingAndroid(): Boolean
 
@@ -73,6 +73,8 @@ public object ReactNativeFeatureFlagsCxxInterop {
   @DoNotStrip @JvmStatic public external fun enableEagerRootViewAttachment(): Boolean
 
   @DoNotStrip @JvmStatic public external fun enableExclusivePropsUpdateAndroid(): Boolean
+
+  @DoNotStrip @JvmStatic public external fun enableFabricCommitBranching(): Boolean
 
   @DoNotStrip @JvmStatic public external fun enableFabricLogs(): Boolean
 
@@ -108,6 +110,8 @@ public object ReactNativeFeatureFlagsCxxInterop {
 
   @DoNotStrip @JvmStatic public external fun enableModuleArgumentNSNullConversionIOS(): Boolean
 
+  @DoNotStrip @JvmStatic public external fun enableMutationObserverByDefault(): Boolean
+
   @DoNotStrip @JvmStatic public external fun enableNativeCSSParsing(): Boolean
 
   @DoNotStrip @JvmStatic public external fun enableNetworkEventReporting(): Boolean
@@ -134,11 +138,7 @@ public object ReactNativeFeatureFlagsCxxInterop {
 
   @DoNotStrip @JvmStatic public external fun enableVirtualViewDebugFeatures(): Boolean
 
-  @DoNotStrip @JvmStatic public external fun enableVirtualViewRenderState(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun enableVirtualViewWindowFocusDetection(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun enableWebPerformanceAPIsByDefault(): Boolean
+  @DoNotStrip @JvmStatic public external fun fixFindShadowNodeByTagRaceCondition(): Boolean
 
   @DoNotStrip @JvmStatic public external fun fixMappingOfEventPrioritiesBetweenFabricAndReact(): Boolean
 
@@ -148,7 +148,11 @@ public object ReactNativeFeatureFlagsCxxInterop {
 
   @DoNotStrip @JvmStatic public external fun fuseboxEnabledRelease(): Boolean
 
+  @DoNotStrip @JvmStatic public external fun fuseboxFrameRecordingEnabled(): Boolean
+
   @DoNotStrip @JvmStatic public external fun fuseboxNetworkInspectionEnabled(): Boolean
+
+  @DoNotStrip @JvmStatic public external fun fuseboxScreenshotCaptureEnabled(): Boolean
 
   @DoNotStrip @JvmStatic public external fun hideOffscreenVirtualViewsOnIOS(): Boolean
 
@@ -162,23 +166,23 @@ public object ReactNativeFeatureFlagsCxxInterop {
 
   @DoNotStrip @JvmStatic public external fun preventShadowTreeCommitExhaustion(): Boolean
 
+  @DoNotStrip @JvmStatic public external fun redBoxV2Android(): Boolean
+
+  @DoNotStrip @JvmStatic public external fun redBoxV2IOS(): Boolean
+
   @DoNotStrip @JvmStatic public external fun shouldPressibilityUseW3CPointerEventsForHover(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun shouldResetClickableWhenRecyclingView(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun shouldResetOnClickListenerWhenRecyclingView(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun shouldSetEnabledBasedOnAccessibilityState(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun shouldSetIsClickableByDefault(): Boolean
 
   @DoNotStrip @JvmStatic public external fun shouldTriggerResponderTransferOnScrollAndroid(): Boolean
 
   @DoNotStrip @JvmStatic public external fun skipActivityIdentityAssertionOnHostPause(): Boolean
 
+  @DoNotStrip @JvmStatic public external fun syncAndroidClipToPaddingWithOverflow(): Boolean
+
   @DoNotStrip @JvmStatic public external fun traceTurboModulePromiseRejectionsOnAndroid(): Boolean
 
   @DoNotStrip @JvmStatic public external fun updateRuntimeShadowNodeReferencesOnCommit(): Boolean
+
+  @DoNotStrip @JvmStatic public external fun updateRuntimeShadowNodeReferencesOnCommitThread(): Boolean
 
   @DoNotStrip @JvmStatic public external fun useAlwaysAvailableJSErrorHandling(): Boolean
 
@@ -186,9 +190,7 @@ public object ReactNativeFeatureFlagsCxxInterop {
 
   @DoNotStrip @JvmStatic public external fun useNativeViewConfigsInBridgelessMode(): Boolean
 
-  @DoNotStrip @JvmStatic public external fun useRawPropsJsiValue(): Boolean
-
-  @DoNotStrip @JvmStatic public external fun useShadowNodeStateOnClone(): Boolean
+  @DoNotStrip @JvmStatic public external fun useNestedScrollViewAndroid(): Boolean
 
   @DoNotStrip @JvmStatic public external fun useSharedAnimatedBackend(): Boolean
 
@@ -198,9 +200,11 @@ public object ReactNativeFeatureFlagsCxxInterop {
 
   @DoNotStrip @JvmStatic public external fun useTurboModules(): Boolean
 
+  @DoNotStrip @JvmStatic public external fun useUnorderedMapInDifferentiator(): Boolean
+
   @DoNotStrip @JvmStatic public external fun viewCullingOutsetRatio(): Double
 
-  @DoNotStrip @JvmStatic public external fun virtualViewHysteresisRatio(): Double
+  @DoNotStrip @JvmStatic public external fun viewTransitionEnabled(): Boolean
 
   @DoNotStrip @JvmStatic public external fun virtualViewPrerenderRatio(): Double
 

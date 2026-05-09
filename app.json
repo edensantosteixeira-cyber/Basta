@@ -54,8 +54,7 @@
           "microphonePermission": "Permite gravar áudio secretamente como evidência."
         }
       ],
-      "expo-mail-composer",
-      "expo-speech-recognition"
+      "expo-speech-recognition",
     ],
     "owner": "app.basta",
     "ios": {},
