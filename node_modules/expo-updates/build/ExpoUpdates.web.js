@@ -25,6 +25,7 @@ class ExpoUpdatesModule extends NativeModule {
         isRestarting: false,
         restartCount: 0,
         sequenceNumber: 0,
+        downloadProgress: 0,
     };
     async reload() {
         if (typeof window !== 'undefined')
@@ -50,5 +51,5 @@ class ExpoUpdatesModule extends NativeModule {
         return { isNew: false, manifest: undefined, isRollBackToEmbedded: false };
     }
 }
-export default registerWebModule(ExpoUpdatesModule);
+export default registerWebModule(ExpoUpdatesModule, 'ExpoUpdates');
 //# sourceMappingURL=ExpoUpdates.web.js.map

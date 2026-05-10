@@ -14,6 +14,8 @@ import expo.modules.updates.db.entity.AssetEntity
 import expo.modules.updates.db.entity.JSONDataEntity
 import expo.modules.updates.db.entity.UpdateAssetEntity
 import expo.modules.updates.db.entity.UpdateEntity
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.asExecutor
 import java.util.*
 
 /**
@@ -44,7 +46,7 @@ import java.util.*
 @Database(
   entities = [UpdateEntity::class, UpdateAssetEntity::class, AssetEntity::class, JSONDataEntity::class],
   exportSchema = false,
-  version = 12
+  version = 13
 )
 @TypeConverters(Converters::class)
 abstract class UpdatesDatabase : RoomDatabase() {
@@ -53,27 +55,39 @@ abstract class UpdatesDatabase : RoomDatabase() {
   abstract fun jsonDataDao(): JSONDataDao?
 
   companion object {
-    private var instance: UpdatesDatabase? = null
-
     private const val DB_NAME = "updates.db"
 
-    @JvmStatic @Synchronized
-    fun getInstance(context: Context): UpdatesDatabase {
-      if (instance == null) {
-        instance = Room.databaseBuilder(context, UpdatesDatabase::class.java, DB_NAME)
-          .addMigrations(MIGRATION_4_5)
-          .addMigrations(MIGRATION_5_6)
-          .addMigrations(MIGRATION_6_7)
-          .addMigrations(MIGRATION_7_8)
-          .addMigrations(MIGRATION_8_9)
-          .addMigrations(MIGRATION_9_10)
-          .addMigrations(MIGRATION_10_11)
-          .addMigrations(MIGRATION_11_12)
-          .fallbackToDestructiveMigration()
+    @Volatile
+    private var INSTANCE: UpdatesDatabase? = null
+
+    fun getInstance(context: Context, dispatcher: CoroutineDispatcher?): UpdatesDatabase {
+      return INSTANCE ?: synchronized(this) {
+        val instance = Room.databaseBuilder(
+          context.applicationContext,
+          UpdatesDatabase::class.java,
+          DB_NAME
+        ).apply {
+          if (dispatcher != null) {
+            setQueryExecutor(dispatcher.asExecutor())
+          }
+        }.addMigrations(
+          MIGRATION_4_5,
+          MIGRATION_5_6,
+          MIGRATION_6_7,
+          MIGRATION_7_8,
+          MIGRATION_8_9,
+          MIGRATION_9_10,
+          MIGRATION_10_11,
+          MIGRATION_11_12,
+          MIGRATION_12_13
+        )
           .allowMainThreadQueries()
+          .fallbackToDestructiveMigration()
           .build()
+
+        INSTANCE = instance
+        instance
       }
-      return instance!!
     }
 
     private fun SupportSQLiteDatabase.runInTransaction(block: SupportSQLiteDatabase.() -> Unit) {
@@ -90,13 +104,7 @@ abstract class UpdatesDatabase : RoomDatabase() {
       // https://www.sqlite.org/lang_altertable.html#otheralter
       try {
         execSQL("PRAGMA foreign_keys=OFF")
-        beginTransaction()
-        try {
-          block()
-          setTransactionSuccessful()
-        } finally {
-          endTransaction()
-        }
+        runInTransaction(block)
       } finally {
         execSQL("PRAGMA foreign_keys=ON")
       }
@@ -216,6 +224,18 @@ abstract class UpdatesDatabase : RoomDatabase() {
           execSQL("ALTER TABLE `new_updates` RENAME TO `updates`")
           execSQL("CREATE INDEX `index_updates_launch_asset_id` ON `updates` (`launch_asset_id`)")
           execSQL("CREATE UNIQUE INDEX `index_updates_scope_key_commit_time` ON `updates` (`scope_key`, `commit_time`)")
+        }
+      }
+    }
+
+    /**
+     * Add the `url` and `headers` columns to `updates`
+     */
+    val MIGRATION_12_13: Migration = object : Migration(12, 13) {
+      override fun migrate(db: SupportSQLiteDatabase) {
+        db.runInTransaction {
+          execSQL("ALTER TABLE `updates` ADD COLUMN `url` TEXT")
+          execSQL("ALTER TABLE `updates` ADD COLUMN `headers` TEXT")
         }
       }
     }
