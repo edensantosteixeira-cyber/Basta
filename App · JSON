@@ -29,7 +29,9 @@
         "android.permission.SEND_SMS",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
-        "android.permission.FOREGROUND_SERVICE_MICROPHONE"
+        "android.permission.FOREGROUND_SERVICE_MICROPHONE",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
@@ -54,16 +56,13 @@
           "microphonePermission": "Permite gravar áudio secretamente como evidência."
         }
       ],
+      "expo-speech-recognition",
       [
-        "expo-speech-recognition",
+        "expo-notifications",
         {
-          "microphonePermission": "O app Basta usa o microfone para detectar sua frase de emergência em segundo plano.",
-          "speechRecognitionPermission": "O app Basta escuta sua frase-código para acionar o SOS automaticamente.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"],
-          "foregroundService": {
-            "notificationTitle": "Basta — Proteção ativa",
-            "notificationDescription": "Monitorando frase de segurança em segundo plano."
-          }
+          "icon": "./assets/icon.png",
+          "color": "#6B3FA0",
+          "androidMode": "default"
         }
       ]
     ],
