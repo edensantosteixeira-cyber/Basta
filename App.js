@@ -1,3 +1,4 @@
+cat > App.js << 'FIM'
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -15,8 +16,13 @@ import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalculadoraCamuflada from './CalculadoraCamuflada';
 import MapaDelegacias from './MapaDelegacias';
+import {
+  configurarCanais,
+  mostrarNotificacaoProtecao,
+  removerNotificacaoProtecao,
+  registrarTarefaKeepalive,
+} from './tarefaSegundoPlano';
 
-// ─── LOGO ─────────────────────────────────────────────────────
 const LOGO = require('./assets/basta_logo.png');
 
 const ROXO     = '#6B3FA0';
@@ -42,7 +48,6 @@ const gerarHash = async (texto, timestamp) => {
   return await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, payload);
 };
 
-// ─── LOGO BASTA ──────────────────────────────────────────────
 const LogoBasta = ({ size = 44 }) => (
   <Image
     source={LOGO}
@@ -92,6 +97,15 @@ export default function App() {
   useEffect(() => {
     iniciarPulso();
     carregarDados();
+    configurarCanais();
+    registrarTarefaKeepalive();
+    AsyncStorage.getItem('@b_frase_ativa').then(val => {
+      if (val === 'true') {
+        setFraseCodigoAtiva(true);
+        setVozStatus('Escutando...');
+        iniciarEscutaVoz();
+      }
+    });
     return () => {
       pararLocalizacaoContinua();
       pararEscutaVoz();
@@ -134,7 +148,7 @@ export default function App() {
     if (frases.includes(texto)) { Alert.alert('Já existe', 'Essa frase já está na lista.'); return; }
     await salvarFrases([...frases, texto]);
     setNovaFrase('');
-    Alert.alert('✅ Frase adicionada!', `"${texto}" será monitorada.`);
+    Alert.alert('✅ Frase adicionada!', '"' + texto + '" será monitorada.');
   };
 
   const salvarEdicaoFrase = async () => {
@@ -184,33 +198,47 @@ export default function App() {
   };
 
   const toggleFraseCodigo = async () => {
-    if (fraseCodigoAtiva) { pararEscutaVoz(); setFraseCodigoAtiva(false); setVozStatus(''); }
-    else { setFraseCodigoAtiva(true); setVozStatus('Escutando...'); await iniciarEscutaVoz(); }
+    if (fraseCodigoAtiva) {
+      pararEscutaVoz();
+      setFraseCodigoAtiva(false);
+      setVozStatus('');
+      await AsyncStorage.setItem('@b_frase_ativa', 'false');
+      await removerNotificacaoProtecao();
+    } else {
+      setFraseCodigoAtiva(true);
+      setVozStatus('Ativando escuta...');
+      await AsyncStorage.setItem('@b_frase_ativa', 'true');
+      await mostrarNotificacaoProtecao();
+      await iniciarEscutaVoz();
+    }
   };
 
   const iniciarEscutaVoz = async () => {
     try {
       const { ExpoSpeechRecognitionModule } = require('expo-speech-recognition');
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!perm.granted) { Alert.alert("Permissão necessária", "Precisamos do microfone."); setFraseCodigoAtiva(false); return; }
+      if (!perm.granted) {
+        Alert.alert('Permissão necessária', 'Precisamos do microfone para a frase-código.');
+        setFraseCodigoAtiva(false);
+        await AsyncStorage.setItem('@b_frase_ativa', 'false');
+        return;
+      }
 
-      // Inicia com foreground service para funcionar em segundo plano
       ExpoSpeechRecognitionModule.start({
         lang: 'pt-BR',
         continuous: true,
         interimResults: true,
-        androidIntentOptions: {
-          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 10000,
-          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 10000,
-        },
         requiresOnDeviceRecognition: false,
         addsPunctuation: false,
         contextualStrings: frases,
-        // Foreground service: mantém escuta mesmo com app em segundo plano
+        androidIntentOptions: {
+          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 8000,
+          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 8000,
+        },
         androidRecognitionServicePackage: 'com.google.android.googlequicksearchbox',
         foregroundService: {
           notificationTitle: 'Basta — Proteção ativa',
-          notificationDescription: 'Monitorando frase de segurança em segundo plano.',
+          notificationDescription: 'Monitorando frase de segurança.',
           notificationColor: '#6B3FA0',
         },
       });
@@ -222,26 +250,45 @@ export default function App() {
         if (detectada) {
           ExpoSpeechRecognitionModule.stop();
           setVozStatus('🚨 Frase detectada! Acionando SOS...');
-          Vibration.vibrate(1000);
-          try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
+          Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+          try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (_) {}
           await acionarSOSCompleto();
-          setFraseCodigoAtiva(false); setVozStatus('');
+          setFraseCodigoAtiva(false);
+          setVozStatus('');
+          await AsyncStorage.setItem('@b_frase_ativa', 'false');
+          await removerNotificacaoProtecao();
         }
       });
 
-      ExpoSpeechRecognitionModule.addListener('end', () => {
-        if (fraseCodigoAtivaRef.current) {
-          setTimeout(() => ExpoSpeechRecognitionModule.start({
-            lang: 'pt-BR',
-            continuous: true,
-            interimResults: true,
-            contextualStrings: frases,
-            foregroundService: {
-              notificationTitle: 'Basta — Proteção ativa',
-              notificationDescription: 'Monitorando frase de segurança em segundo plano.',
-              notificationColor: '#6B3FA0',
-            },
-          }), 500);
+      ExpoSpeechRecognitionModule.addListener('end', async () => {
+        const aindaAtiva = await AsyncStorage.getItem('@b_frase_ativa');
+        if (aindaAtiva === 'true') {
+          setTimeout(() => {
+            try {
+              ExpoSpeechRecognitionModule.start({
+                lang: 'pt-BR',
+                continuous: true,
+                interimResults: true,
+                contextualStrings: frases,
+                foregroundService: {
+                  notificationTitle: 'Basta — Proteção ativa',
+                  notificationDescription: 'Monitorando frase de segurança.',
+                  notificationColor: '#6B3FA0',
+                },
+              });
+            } catch (_) {}
+          }, 1000);
+        }
+      });
+
+      ExpoSpeechRecognitionModule.addListener('error', async (event) => {
+        const aindaAtiva = await AsyncStorage.getItem('@b_frase_ativa');
+        const recuperavel = ['network', 'no-speech', 'audio', 'aborted'];
+        if (recuperavel.includes(event.error) && aindaAtiva === 'true') {
+          setTimeout(() => iniciarEscutaVoz(), 2000);
+        } else if (aindaAtiva === 'true') {
+          setVozStatus('Reconectando...');
+          setTimeout(() => iniciarEscutaVoz(), 5000);
         }
       });
 
@@ -249,7 +296,11 @@ export default function App() {
       setVozStatus('Escutando...');
     } catch (e) {
       setVozStatus('Escuta ativa');
-      Alert.alert('🗣 Escuta ativada', 'SOS será enviado ao detectar sua frase-código, mesmo com o app em segundo plano.', [{ text: 'Entendido' }]);
+      Alert.alert(
+        'Proteção ativada',
+        'O SOS será acionado ao detectar sua frase-código, mesmo com o app em segundo plano.',
+        [{ text: 'Entendido' }]
+      );
     }
   };
 
@@ -259,7 +310,8 @@ export default function App() {
       ExpoSpeechRecognitionModule.stop();
       ExpoSpeechRecognitionModule.removeAllListeners('result');
       ExpoSpeechRecognitionModule.removeAllListeners('end');
-    } catch (e) {}
+      ExpoSpeechRecognitionModule.removeAllListeners('error');
+    } catch (_) {}
     vozRecognition.current = null;
   };
 
@@ -273,7 +325,7 @@ export default function App() {
     let enviados = 0;
     for (let i = 0; i < listaContatos.length; i++) {
       const c = listaContatos[i];
-      setSosMensagem('📤 Enviando para ' + c.nome + '... (' + (i + 1) + '/' + listaContatos.length + ')');
+      setSosMensagem('Enviando para ' + c.nome + '... (' + (i + 1) + '/' + listaContatos.length + ')');
       const tel = c.tel.replace(/\D/g, '');
       const telFull = tel.startsWith('55') ? tel : '55' + tel;
       try {
@@ -284,7 +336,7 @@ export default function App() {
       Vibration.vibrate(300);
       enviados++;
     }
-    setSosMensagem('✅ ' + enviados + ' contato' + (enviados !== 1 ? 's' : '') + ' alertado' + (enviados !== 1 ? 's' : '') + '!');
+    setSosMensagem('✅ ' + enviados + ' contato(s) alertado(s)!');
     Vibration.vibrate(500);
     setTimeout(() => { setSosAtivado(false); setSosMensagem(''); }, 4000);
   };
@@ -314,7 +366,7 @@ export default function App() {
         setItens(lista);
         await AsyncStorage.setItem('@b_d', JSON.stringify(lista));
         Vibration.vibrate(200);
-        Alert.alert('🎙 Áudio salvo!', 'Gravação salva no Diário com blindagem.');
+        Alert.alert('Áudio salvo!', 'Gravação salva no Diário com blindagem.');
         return;
       }
       const { status } = await Audio.requestPermissionsAsync();
@@ -331,7 +383,7 @@ export default function App() {
     setListaContatos(novaLista);
     await AsyncStorage.setItem('@b_c_list', JSON.stringify(novaLista));
     setTempNome(''); setTempTel('');
-    Alert.alert('✅ Contato adicionado!', `${tempNome} foi salvo.`);
+    Alert.alert('✅ Contato adicionado!', tempNome + ' foi salvo.');
   };
 
   const excluirContato = async (id) => Alert.alert('Remover contato', 'Tem certeza?', [
@@ -344,17 +396,17 @@ export default function App() {
   ]);
 
   const montarTextoEvidencia = (item) => [
-    '🔒 REGISTRO DE EVIDÊNCIA — APP BASTA',
+    'REGISTRO DE EVIDÊNCIA — APP BASTA',
     '─────────────────────────────────────',
-    `📅 Data: ${item.data}`,
-    item.gps ? `📍 GPS: ${item.gps.latitude.toFixed(6)}, ${item.gps.longitude.toFixed(6)}` : '',
-    `📁 Tipo: ${item.tipo}`,
-    '', '📝 CONTEÚDO:',
-    item.tipo === 'texto' ? item.conteudo : `[Arquivo de ${item.tipo} registrado]`,
+    'Data: ' + item.data,
+    item.gps ? 'GPS: ' + item.gps.latitude.toFixed(6) + ', ' + item.gps.longitude.toFixed(6) : '',
+    'Tipo: ' + item.tipo,
+    '', 'CONTEÚDO:',
+    item.tipo === 'texto' ? item.conteudo : '[Arquivo de ' + item.tipo + ' registrado]',
     '', '─────────────────────────────────────',
-    '🔐 BLINDAGEM CRIPTOGRÁFICA:',
-    `Hash SHA-256: ${item.hash || 'N/A'}`,
-    `Carimbo: ${item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : item.data}`,
+    'BLINDAGEM CRIPTOGRÁFICA:',
+    'Hash SHA-256: ' + (item.hash || 'N/A'),
+    'Carimbo: ' + (item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : item.data),
     '', 'Gerado pelo app Basta.',
   ].filter(Boolean).join('\n');
 
@@ -373,7 +425,7 @@ export default function App() {
       const novoItem = { id: Date.now().toString(), tipo, data: new Date().toLocaleString('pt-BR'), timestamp, hash, gps, conteudo: conteudoUri || textoRelato };
       const lista = [novoItem, ...itens];
       setItens(lista); await AsyncStorage.setItem('@b_d', JSON.stringify(lista));
-      animarProgresso(100); setStepSalvando('Blindado! ✓');
+      animarProgresso(100); setStepSalvando('Blindado!');
       await new Promise(r => setTimeout(r, 500));
       setSalvando(false); return novoItem;
     } catch (e) { setSalvando(false); Alert.alert('Erro', 'Não foi possível salvar.'); return null; }
@@ -392,7 +444,7 @@ export default function App() {
   const salvarRelato = async () => {
     if (!relato.trim()) return Alert.alert('Atenção', 'Escreva algo antes de salvar.');
     const resultado = await salvarItem('texto', null, relato.trim());
-    if (resultado) { setRelato(''); Alert.alert('🔒 Registro blindado!', 'Salvo!\n\nUse "📤 Salvar evidência" para enviar cópia.'); }
+    if (resultado) { setRelato(''); Alert.alert('Registro blindado!', 'Salvo! Use "Salvar evidência" para enviar cópia.'); }
   };
 
   const excluirItem = async (id) => Alert.alert('Apagar registro', 'Tem certeza?', [
@@ -441,20 +493,20 @@ export default function App() {
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
             <View style={s.modalHandle} />
-            <Text style={s.modalTitulo}>📤 Salvar evidência</Text>
+            <Text style={s.modalTitulo}>Salvar evidência</Text>
             <Text style={s.modalSub}>Como deseja guardar este registro?</Text>
             {[
               { ico: '📧', txt: 'E-mail', sub: 'Enviar cópia para seu e-mail seguro', fn: async () => {
                 setModalEvidencia(null); Vibration.vibrate(100);
                 try {
                   const ok = await MailComposer.isAvailableAsync();
-                  if (!ok) await Linking.openURL(`mailto:?subject=${encodeURIComponent('🔒 Evidência — App Basta')}&body=${encodeURIComponent(texto)}`);
-                  else await MailComposer.composeAsync({ subject: '🔒 Evidência — App Basta', body: texto, isHtml: false });
+                  if (!ok) await Linking.openURL('mailto:?subject=' + encodeURIComponent('Evidência — App Basta') + '&body=' + encodeURIComponent(texto));
+                  else await MailComposer.composeAsync({ subject: 'Evidência — App Basta', body: texto, isHtml: false });
                 } catch (e) { Alert.alert('Erro', 'Não foi possível abrir o e-mail.'); }
               }},
               { ico: '💬', txt: 'WhatsApp', sub: 'Enviar para contato de confiança', fn: async () => {
                 setModalEvidencia(null); Vibration.vibrate(100);
-                await Linking.openURL(`whatsapp://send?text=${encodeURIComponent(texto)}`);
+                await Linking.openURL('whatsapp://send?text=' + encodeURIComponent(texto));
               }},
               { ico: '📤', txt: 'Outros', sub: 'Drive, Telegram, salvar arquivo...', fn: async () => {
                 setModalEvidencia(null); Vibration.vibrate(100);
@@ -478,7 +530,6 @@ export default function App() {
     );
   };
 
-  // ===== DIÁRIO =====
   if (tela === 'diario') {
     return (
       <SafeAreaView style={s.base}>
@@ -508,7 +559,7 @@ export default function App() {
               <Text style={s.btnGradTxt}>{salvando ? 'Blindando...' : '🔒 Salvar com blindagem'}</Text>
             </LinearGradient>
           </TouchableOpacity>
-          <View style={s.dicaBackup}><Text style={s.dicaBackupTxt}>💡 Após salvar, toque em "📤 Salvar evidência" para enviar cópia por e-mail ou WhatsApp.</Text></View>
+          <View style={s.dicaBackup}><Text style={s.dicaBackupTxt}>💡 Após salvar, toque em "Salvar evidência" para enviar cópia por e-mail ou WhatsApp.</Text></View>
           {itens.length === 0 ? (
             <View style={s.emptyBox}><Text style={s.emptyIco}>📋</Text><Text style={s.emptyTxt}>Nenhum registro ainda.</Text><Text style={s.emptySubTxt}>Seus registros são salvos com segurança.</Text></View>
           ) : itens.map(item => (
@@ -553,7 +604,6 @@ export default function App() {
     );
   }
 
-  // ===== LEIS =====
   if (tela === 'leis') {
     const leis = [
       { titulo: 'Lei Maria da Penha (11.340/2006)', icon: '🛡️', resumo: 'A lei mais importante de proteção à mulher no Brasil.', detalhes: ['Protege contra violência doméstica e familiar de qualquer tipo.', 'Garante Medida Protetiva de Urgência: agressor afastado em até 48h.', 'Você pode pedir a medida protetiva na delegacia, SEM advogado.', 'O agressor pode ser preso em flagrante sem você assinar representação.', 'Inclui violência física, psicológica, sexual, patrimonial e moral.', 'Garante atendimento no SUS e assistência jurídica gratuita.'] },
@@ -586,12 +636,11 @@ export default function App() {
     );
   }
 
-  // ===== CONTATOS =====
   if (tela === 'contatos') {
     return (
       <SafeAreaView style={s.base}>
         <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
-        {renderHeader('Contatos', `Pessoas que vão te proteger (${listaContatos.length}/5)`)}
+        {renderHeader('Contatos', 'Pessoas que vão te proteger (' + listaContatos.length + '/5)')}
         <ScrollView style={s.conteudo}>
           <View style={s.formCard}>
             <Text style={s.formTitulo}>+ Adicionar contato</Text>
@@ -614,18 +663,16 @@ export default function App() {
               <TouchableOpacity onPress={() => excluirContato(c.id)} style={s.lixeiraBtn}><Text style={s.lixeiraIco}>🗑️</Text></TouchableOpacity>
             </View>
           ))}
-          <View style={s.dicaBox}><Text style={s.dicaTxt}>💡 No SOS, todos recebem WhatsApp + SMS com localização, em cascata, com 1 toque.</Text></View>
+          <View style={s.dicaBox}><Text style={s.dicaTxt}>💡 No SOS, todos recebem WhatsApp com localização, em cascata, com 1 toque.</Text></View>
           <View style={{ height: 32 }} />
         </ScrollView>
       </SafeAreaView>
     );
   }
 
-  // ===== HOME =====
   return (
     <SafeAreaView style={s.base}>
       <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
-
       <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.header}>
         <TouchableOpacity onPress={() => setDesbloqueado(false)} style={s.btnVoltarCalc}>
           <Text style={s.btnVoltarCalcTxt}>← Calculadora</Text>
@@ -638,8 +685,8 @@ export default function App() {
         <View style={s.statusBar}>
           <View style={[s.statusDot, localizacaoAtiva && { backgroundColor: '#60A5FA' }]} />
           <Text style={s.statusTxt}>
-            {localizacaoAtiva ? '📍 Rastreando' : 'Você não está sozinha'} • {listaContatos.length} contato{listaContatos.length !== 1 ? 's' : ''}
-            {fraseCodigoAtiva ? ' • 🗣 Escutando' : ''}
+            {localizacaoAtiva ? 'Rastreando' : 'Você não está sozinha'} • {listaContatos.length} contato{listaContatos.length !== 1 ? 's' : ''}
+            {fraseCodigoAtiva ? ' • Escutando' : ''}
           </Text>
         </View>
       </LinearGradient>
@@ -651,7 +698,6 @@ export default function App() {
             <Text style={s.sosConfirmacaoTxt}>{sosMensagem}</Text>
           </View>
         )}
-
         <View style={s.sosArea}>
           <Animated.View style={[s.anel, { transform: [{ scale: pulso3 }], opacity: 0.06 }]} />
           <Animated.View style={[s.anel, { transform: [{ scale: pulso2 }], opacity: 0.10 }]} />
@@ -662,7 +708,6 @@ export default function App() {
           </TouchableOpacity>
         </View>
         <Text style={s.sosInstrucao}>1 toque → envia direto para todos os contatos</Text>
-
         <View style={s.botoesRapidos}>
           <TouchableOpacity style={[s.btnRapido, gravandoRapido && s.btnRapidoAtivo]} onPress={iniciarGravacaoRapida}>
             <Text style={s.btnRapidoIco}>{gravandoRapido ? '⏹' : '🎙'}</Text>
@@ -673,21 +718,18 @@ export default function App() {
             <Text style={[s.btnRapidoTxt, fraseCodigoAtiva && { color: ROXO }]}>{fraseCodigoAtiva ? 'Escutando...' : 'Frase-código'}</Text>
           </TouchableOpacity>
         </View>
-
         {fraseCodigoAtiva && (
           <View style={s.vozStatusBox}>
             <Text style={s.vozStatusTxt}>{vozStatus || 'Escutando...'}</Text>
             <Text style={s.vozFrases}>SOS automático ao detectar frase — sem confirmação</Text>
           </View>
         )}
-
         <View style={s.grid}>
           <TouchableOpacity style={s.card} onPress={() => setTela('diario')}><Text style={s.cardIco}>📓</Text><Text style={s.cardTitulo}>Diário</Text><Text style={s.cardSub}>Registrar incidentes</Text></TouchableOpacity>
           <TouchableOpacity style={s.card} onPress={() => setTela('leis')}><Text style={s.cardIco}>⚖️</Text><Text style={s.cardTitulo}>Seus Direitos</Text><Text style={s.cardSub}>Leis que te protegem</Text></TouchableOpacity>
           <TouchableOpacity style={s.card} onPress={() => Linking.openURL('tel:180')}><Text style={s.cardIco}>📞</Text><Text style={s.cardTitulo}>Ligue 180</Text><Text style={s.cardSub}>Central gratuita 24h</Text></TouchableOpacity>
-          <TouchableOpacity style={s.card} onPress={() => setTela('contatos')}><Text style={s.cardIco}>👥</Text><Text style={s.cardTitulo}>Contatos</Text><Text style={s.cardSub}>{listaContatos.length === 0 ? 'Adicionar' : `${listaContatos.length} cadastrado${listaContatos.length !== 1 ? 's' : ''}`}</Text></TouchableOpacity>
+          <TouchableOpacity style={s.card} onPress={() => setTela('contatos')}><Text style={s.cardIco}>👥</Text><Text style={s.cardTitulo}>Contatos</Text><Text style={s.cardSub}>{listaContatos.length === 0 ? 'Adicionar' : listaContatos.length + ' cadastrado' + (listaContatos.length !== 1 ? 's' : '')}</Text></TouchableOpacity>
         </View>
-
         {listaContatos.length === 0 && (
           <TouchableOpacity style={s.alertaCard} onPress={() => setTela('contatos')}>
             <Text style={{ fontSize: 22 }}>⚠️</Text>
@@ -695,31 +737,26 @@ export default function App() {
             <Text style={{ fontSize: 20, color: '#8A6070' }}>›</Text>
           </TouchableOpacity>
         )}
-
         <TouchableOpacity style={s.rowCard} onPress={() => setTela('mapa')}>
           <Text style={{ fontSize: 18 }}>📍</Text>
           <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Mapa de delegacias</Text><Text style={s.rowCardSub}>Encontre a unidade mais próxima</Text></View>
           <Text style={{ fontSize: 18, color: '#8A6070' }}>›</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={[s.rowCard, localizacaoAtiva && s.rowCardAtivo]} onPress={toggleLocalizacao}>
           <Text style={{ fontSize: 18 }}>🗺️</Text>
           <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Localização contínua</Text><Text style={s.rowCardSub}>{localizacaoAtiva ? 'Ativa — rastreando em segundo plano' : 'Toque para ativar rastreamento'}</Text></View>
           <View style={[s.rowDot, localizacaoAtiva && { backgroundColor: '#60A5FA' }]} />
         </TouchableOpacity>
-
         <TouchableOpacity style={[s.rowCard, fraseCodigoAtiva && s.rowCardVoz]} onPress={toggleFraseCodigo}>
           <Text style={{ fontSize: 18 }}>🗣</Text>
           <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Frase-código</Text><Text style={s.rowCardSub}>{fraseCodigoAtiva ? 'Ativa — SOS automático ao detectar' : 'Toque para ativar escuta'}</Text></View>
           <View style={[s.rowDot, fraseCodigoAtiva && { backgroundColor: ROXO }]} />
         </TouchableOpacity>
-
         <TouchableOpacity style={s.rowCard} onPress={() => setShowGerenciarFrases(!showGerenciarFrases)}>
           <Text style={{ fontSize: 18 }}>✏️</Text>
           <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Minhas frases-código</Text><Text style={s.rowCardSub}>Personalizar frases que ativam o SOS</Text></View>
           <Text style={{ fontSize: 14, color: '#8A6070' }}>{showGerenciarFrases ? '▲' : '▼'}</Text>
         </TouchableOpacity>
-
         {showGerenciarFrases && (
           <View style={s.frasesCard}>
             <Text style={s.frasesTitulo}>Frases que ativam o SOS automaticamente:</Text>
@@ -753,7 +790,6 @@ export default function App() {
             <View style={s.fraseAviso}><Text style={s.fraseAvisoTxt}>⚠️ Ao detectar qualquer frase, o SOS é enviado imediatamente, sem confirmação.</Text></View>
           </View>
         )}
-
         <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.banner}>
           <View style={{ alignItems: 'center', marginBottom: 10 }}>
             <LogoBasta size={64} />
@@ -761,7 +797,6 @@ export default function App() {
           <Text style={s.bannerTxt}>Proteção completa no seu bolso</Text>
           <Text style={s.bannerSub}>Mais que um app. Um suporte real.</Text>
         </LinearGradient>
-
       </ScrollView>
     </SafeAreaView>
   );
@@ -787,8 +822,6 @@ function LeiCard({ lei }) {
 
 const s = StyleSheet.create({
   base: { flex: 1, backgroundColor: FUNDO },
-
-  // HEADER HOME — paddingTop aumentado para não cortar
   header: { paddingTop: 52, paddingHorizontal: 20, paddingBottom: 24 },
   logoRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 6 },
   headerNome: { fontStyle: 'italic', fontSize: 44, fontWeight: '800', color: 'white', letterSpacing: -0.5 },
@@ -796,8 +829,6 @@ const s = StyleSheet.create({
   statusBar: { backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10 },
   statusDot: { width: 10, height: 10, backgroundColor: '#4ADE80', borderRadius: 5 },
   statusTxt: { color: 'white', fontSize: 12, fontWeight: '500', flex: 1 },
-
-  // HEADER TELAS INTERNAS
   telaHeader: { paddingTop: 52, paddingHorizontal: 20, paddingBottom: 24 },
   telaLogoRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
   voltarBtn: { marginBottom: 10 },
@@ -805,7 +836,6 @@ const s = StyleSheet.create({
   telaTitulo: { fontStyle: 'italic', fontSize: 30, fontWeight: 'bold', color: 'white' },
   telaSlogan: { color: 'rgba(255,255,255,0.75)', fontSize: 13 },
   conteudo: { flex: 1, padding: 16 },
-
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: 'white', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40 },
   modalHandle: { width: 40, height: 4, backgroundColor: '#ddd', borderRadius: 2, alignSelf: 'center', marginBottom: 20 },
@@ -818,7 +848,6 @@ const s = StyleSheet.create({
   modalOpcaoSub: { fontSize: 12, color: '#888', marginTop: 2 },
   modalVoltar: { backgroundColor: '#F5F5F5', borderRadius: 12, padding: 14, alignItems: 'center', marginTop: 16 },
   modalVoltarTxt: { fontSize: 14, color: '#555', fontWeight: '600' },
-
   sosConfirmacao: { backgroundColor: '#1A0A0A', marginHorizontal: 16, marginTop: 10, borderRadius: 12, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1, borderColor: ROSE },
   sosConfirmacaoTxt: { flex: 1, color: 'white', fontSize: 12, fontWeight: '600' },
   sosArea: { alignItems: 'center', justifyContent: 'center', height: 160, marginVertical: 8 },
@@ -827,35 +856,29 @@ const s = StyleSheet.create({
   sosT: { color: 'white', fontSize: 30, fontWeight: 'bold' },
   sosEmerg: { color: 'white', fontSize: 9, fontWeight: '600', letterSpacing: 2, marginTop: 2 },
   sosInstrucao: { textAlign: 'center', color: '#8A6070', fontSize: 12, marginBottom: 14 },
-
   botoesRapidos: { flexDirection: 'row', paddingHorizontal: 16, gap: 10, marginBottom: 14 },
   btnRapido: { flex: 1, backgroundColor: 'white', borderRadius: 14, padding: 14, alignItems: 'center', borderWidth: 1.5, borderColor: 'rgba(107,63,160,0.15)', elevation: 2 },
   btnRapidoAtivo: { backgroundColor: '#FFF0F0', borderColor: ROSE },
   btnRapidoVozAtivo: { backgroundColor: '#EDE5F8', borderColor: ROXO },
   btnRapidoIco: { fontSize: 22, marginBottom: 4 },
   btnRapidoTxt: { fontSize: 11, fontWeight: '600', color: '#1A0E14', textAlign: 'center' },
-
   vozStatusBox: { backgroundColor: '#EDE5F8', borderRadius: 12, marginHorizontal: 16, padding: 12, marginBottom: 12 },
   vozStatusTxt: { fontSize: 12, fontWeight: '700', color: ROXO, marginBottom: 4 },
   vozFrases: { fontSize: 11, color: '#4A2D7A', lineHeight: 16 },
-
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 16, gap: 12, marginBottom: 12 },
   card: { width: '47%', backgroundColor: 'white', borderRadius: 18, padding: 18, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, borderWidth: 1, borderColor: 'rgba(107,63,160,0.1)' },
   cardIco: { fontSize: 30, marginBottom: 10 },
   cardTitulo: { fontSize: 14, fontWeight: '700', color: '#1A0E14', marginBottom: 3 },
   cardSub: { fontSize: 12, color: '#8A6070' },
-
   alertaCard: { backgroundColor: '#FDF4DC', borderRadius: 16, margin: 16, marginTop: 0, padding: 16, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#E8A838' },
   alertaTitulo: { fontSize: 14, fontWeight: '600', color: '#1A0E14' },
   alertaSub: { fontSize: 12, color: '#8A6070', marginTop: 2 },
-
   rowCard: { backgroundColor: 'white', borderRadius: 14, marginHorizontal: 16, marginBottom: 8, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: 'rgba(107,63,160,0.12)', elevation: 1 },
   rowCardAtivo: { backgroundColor: '#EFF8FF', borderColor: '#60A5FA' },
   rowCardVoz: { backgroundColor: '#EDE5F8', borderColor: ROXO },
   rowCardTitulo: { fontSize: 13, fontWeight: '600', color: '#1A0E14' },
   rowCardSub: { fontSize: 11, color: '#8A6070', marginTop: 2 },
   rowDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#ddd' },
-
   frasesCard: { backgroundColor: 'white', borderRadius: 14, marginHorizontal: 16, marginBottom: 8, padding: 16, borderWidth: 1.5, borderColor: 'rgba(107,63,160,0.15)' },
   frasesTitulo: { fontSize: 12, fontWeight: '700', color: ROXO, marginBottom: 12 },
   fraseItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5, borderBottomColor: '#EDE5F8', gap: 8 },
@@ -873,14 +896,11 @@ const s = StyleSheet.create({
   fraseAddTxt: { color: 'white', fontSize: 24, fontWeight: '300' },
   fraseAviso: { backgroundColor: '#FFF0F0', borderRadius: 10, padding: 10, marginTop: 12, borderWidth: 1, borderColor: 'rgba(200,51,90,0.2)' },
   fraseAvisoTxt: { fontSize: 11, color: '#9E1F42', lineHeight: 16 },
-
   btnVoltarCalc: { alignSelf: 'flex-end', paddingHorizontal: 12, paddingVertical: 5, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 20, marginBottom: 6 },
   btnVoltarCalcTxt: { color: 'rgba(255,255,255,0.90)', fontSize: 12, fontWeight: '600' },
-
   banner: { margin: 16, borderRadius: 18, padding: 22, marginBottom: 32, alignItems: 'center' },
   bannerTxt: { color: 'white', fontSize: 16, fontWeight: '700', textAlign: 'center', marginBottom: 8 },
   bannerSub: { color: 'rgba(255,255,255,0.88)', fontSize: 14, fontStyle: 'italic', textAlign: 'center', lineHeight: 20 },
-
   botoesMedia: { flexDirection: 'row', gap: 12, marginBottom: 14 },
   btnMedia: { flex: 1, backgroundColor: 'white', borderRadius: 14, padding: 16, alignItems: 'center', elevation: 2, borderWidth: 1, borderColor: 'rgba(107,63,160,0.1)' },
   btnMediaIco: { fontSize: 28, marginBottom: 6 },
@@ -962,4 +982,5 @@ const s = StyleSheet.create({
   leiTxt: { flex: 1, fontSize: 13, color: '#4A2D3A', lineHeight: 20 },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
-}); 
+});
+FIM 
