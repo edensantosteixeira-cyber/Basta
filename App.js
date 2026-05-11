@@ -983,4 +983,4 @@ const s = StyleSheet.create({
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
 });
-FIM 
+ 
