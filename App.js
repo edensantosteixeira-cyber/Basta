@@ -16,6 +16,7 @@ import { NativeModules } from 'react-native';
 const { SmsModule } = NativeModules;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Accelerometer } from 'expo-sensors';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import CalculadoraCamuflada from './CalculadoraCamuflada';
 import MapaDelegacias from './MapaDelegacias';
 import {
@@ -275,12 +276,14 @@ export default function App() {
       setVozStatus('');
       await AsyncStorage.setItem('@b_frase_ativa', 'false');
       await removerNotificacaoProtecao();
+      deactivateKeepAwake();
     } else {
       fraseCodigoAtivaRef.current = true;
       setFraseCodigoAtiva(true);
       setVozStatus('Ativando escuta...');
       await AsyncStorage.setItem('@b_frase_ativa', 'true');
       await mostrarNotificacaoProtecao();
+      await activateKeepAwakeAsync();
       await iniciarEscutaVoz();
     }
   };
