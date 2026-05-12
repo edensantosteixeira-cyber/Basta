@@ -1,4 +1,3 @@
-cat > App.js << 'FIM'
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
@@ -93,6 +92,10 @@ export default function App() {
   const ultimaLocalizacao = useRef(null);
   const vozRecognition = useRef(null);
   const fraseCodigoAtivaRef = useRef(false);
+  const reiniciandoRef = useRef(false);
+  const frasesRef = useRef(FRASES_PADRAO);
+
+  useEffect(() => { frasesRef.current = frases; }, [frases]);
 
   useEffect(() => {
     iniciarPulso();
@@ -102,6 +105,7 @@ export default function App() {
     AsyncStorage.getItem('@b_frase_ativa').then(val => {
       if (val === 'true') {
         setFraseCodigoAtiva(true);
+        fraseCodigoAtivaRef.current = true;
         setVozStatus('Escutando...');
         iniciarEscutaVoz();
       }
@@ -133,12 +137,17 @@ export default function App() {
       const f = await AsyncStorage.getItem('@b_frases');
       if (d) setItens(JSON.parse(d));
       if (c) setListaContatos(JSON.parse(c));
-      if (f) setFrases(JSON.parse(f));
+      if (f) {
+        const frasesCarregadas = JSON.parse(f);
+        setFrases(frasesCarregadas);
+        frasesRef.current = frasesCarregadas;
+      }
     } catch (e) {}
   };
 
   const salvarFrases = async (lista) => {
     setFrases(lista);
+    frasesRef.current = lista;
     await AsyncStorage.setItem('@b_frases', JSON.stringify(lista));
   };
 
@@ -148,7 +157,7 @@ export default function App() {
     if (frases.includes(texto)) { Alert.alert('Já existe', 'Essa frase já está na lista.'); return; }
     await salvarFrases([...frases, texto]);
     setNovaFrase('');
-    Alert.alert('✅ Frase adicionada!', '"' + texto + '" será monitorada.');
+    Alert.alert('Frase adicionada!', '"' + texto + '" será monitorada.');
   };
 
   const salvarEdicaoFrase = async () => {
@@ -199,12 +208,14 @@ export default function App() {
 
   const toggleFraseCodigo = async () => {
     if (fraseCodigoAtiva) {
+      fraseCodigoAtivaRef.current = false;
       pararEscutaVoz();
       setFraseCodigoAtiva(false);
       setVozStatus('');
       await AsyncStorage.setItem('@b_frase_ativa', 'false');
       await removerNotificacaoProtecao();
     } else {
+      fraseCodigoAtivaRef.current = true;
       setFraseCodigoAtiva(true);
       setVozStatus('Ativando escuta...');
       await AsyncStorage.setItem('@b_frase_ativa', 'true');
@@ -214,28 +225,96 @@ export default function App() {
   };
 
   const iniciarEscutaVoz = async () => {
+    if (reiniciandoRef.current) return;
+    reiniciandoRef.current = true;
+
     try {
       const { ExpoSpeechRecognitionModule } = require('expo-speech-recognition');
+
       const perm = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!perm.granted) {
         Alert.alert('Permissão necessária', 'Precisamos do microfone para a frase-código.');
+        fraseCodigoAtivaRef.current = false;
         setFraseCodigoAtiva(false);
         await AsyncStorage.setItem('@b_frase_ativa', 'false');
+        reiniciandoRef.current = false;
         return;
       }
 
+      // Remove listeners anteriores para evitar duplicatas
+      try {
+        ExpoSpeechRecognitionModule.removeAllListeners('result');
+        ExpoSpeechRecognitionModule.removeAllListeners('end');
+        ExpoSpeechRecognitionModule.removeAllListeners('error');
+      } catch (_) {}
+
+      // Listener de resultado — detecta a frase
+      ExpoSpeechRecognitionModule.addListener('result', async (event) => {
+        try {
+          const transcript = event.results
+            .map(r => r.transcript.toLowerCase().trim())
+            .join(' ');
+
+          if (transcript) {
+            setVozStatus('Ouvi: "' + transcript.slice(-40) + '"');
+          }
+
+          const frasesAtivas = frasesRef.current;
+          const detectada = frasesAtivas.find(f =>
+            transcript.includes(f.toLowerCase().trim())
+          );
+
+          if (detectada) {
+            try { ExpoSpeechRecognitionModule.stop(); } catch (_) {}
+            fraseCodigoAtivaRef.current = false;
+
+            setVozStatus('Frase detectada! Acionando SOS...');
+            Vibration.vibrate([0, 500, 200, 500, 200, 500]);
+            try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (_) {}
+
+            await acionarSOSCompleto();
+
+            setFraseCodigoAtiva(false);
+            setVozStatus('');
+            await AsyncStorage.setItem('@b_frase_ativa', 'false');
+            await removerNotificacaoProtecao();
+          }
+        } catch (_) {}
+      });
+
+      // Listener de fim — reinicia automaticamente se ainda ativo
+      ExpoSpeechRecognitionModule.addListener('end', async () => {
+        reiniciandoRef.current = false;
+        const aindaAtiva = await AsyncStorage.getItem('@b_frase_ativa');
+        if (aindaAtiva === 'true' && fraseCodigoAtivaRef.current) {
+          setVozStatus('Escutando...');
+          setTimeout(() => iniciarEscutaVoz(), 800);
+        }
+      });
+
+      // Listener de erro — reinicia em qualquer erro
+      ExpoSpeechRecognitionModule.addListener('error', async (event) => {
+        reiniciandoRef.current = false;
+        const aindaAtiva = await AsyncStorage.getItem('@b_frase_ativa');
+        if (aindaAtiva === 'true' && fraseCodigoAtivaRef.current) {
+          setVozStatus('Escutando...');
+          setTimeout(() => iniciarEscutaVoz(), 1500);
+        }
+      });
+
+      // Inicia o reconhecimento
       ExpoSpeechRecognitionModule.start({
         lang: 'pt-BR',
         continuous: true,
         interimResults: true,
         requiresOnDeviceRecognition: false,
         addsPunctuation: false,
-        contextualStrings: frases,
+        contextualStrings: frasesRef.current,
         androidIntentOptions: {
-          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 8000,
-          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 8000,
+          EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS: 5000,
+          EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS: 5000,
+          EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS: 1000,
         },
-        androidRecognitionServicePackage: 'com.google.android.googlequicksearchbox',
         foregroundService: {
           notificationTitle: 'Basta — Proteção ativa',
           notificationDescription: 'Monitorando frase de segurança.',
@@ -243,64 +322,17 @@ export default function App() {
         },
       });
 
-      ExpoSpeechRecognitionModule.addListener('result', async (event) => {
-        const transcript = event.results.map(r => r.transcript.toLowerCase().trim()).join(' ');
-        setVozStatus('Escutando: "' + transcript.slice(-35) + '"');
-        const detectada = frases.find(f => transcript.includes(f));
-        if (detectada) {
-          ExpoSpeechRecognitionModule.stop();
-          setVozStatus('🚨 Frase detectada! Acionando SOS...');
-          Vibration.vibrate([0, 500, 200, 500, 200, 500]);
-          try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (_) {}
-          await acionarSOSCompleto();
-          setFraseCodigoAtiva(false);
-          setVozStatus('');
-          await AsyncStorage.setItem('@b_frase_ativa', 'false');
-          await removerNotificacaoProtecao();
-        }
-      });
-
-      ExpoSpeechRecognitionModule.addListener('end', async () => {
-        const aindaAtiva = await AsyncStorage.getItem('@b_frase_ativa');
-        if (aindaAtiva === 'true') {
-          setTimeout(() => {
-            try {
-              ExpoSpeechRecognitionModule.start({
-                lang: 'pt-BR',
-                continuous: true,
-                interimResults: true,
-                contextualStrings: frases,
-                foregroundService: {
-                  notificationTitle: 'Basta — Proteção ativa',
-                  notificationDescription: 'Monitorando frase de segurança.',
-                  notificationColor: '#6B3FA0',
-                },
-              });
-            } catch (_) {}
-          }, 1000);
-        }
-      });
-
-      ExpoSpeechRecognitionModule.addListener('error', async (event) => {
-        const aindaAtiva = await AsyncStorage.getItem('@b_frase_ativa');
-        const recuperavel = ['network', 'no-speech', 'audio', 'aborted'];
-        if (recuperavel.includes(event.error) && aindaAtiva === 'true') {
-          setTimeout(() => iniciarEscutaVoz(), 2000);
-        } else if (aindaAtiva === 'true') {
-          setVozStatus('Reconectando...');
-          setTimeout(() => iniciarEscutaVoz(), 5000);
-        }
-      });
-
       vozRecognition.current = ExpoSpeechRecognitionModule;
       setVozStatus('Escutando...');
+      reiniciandoRef.current = false;
+
     } catch (e) {
-      setVozStatus('Escuta ativa');
-      Alert.alert(
-        'Proteção ativada',
-        'O SOS será acionado ao detectar sua frase-código, mesmo com o app em segundo plano.',
-        [{ text: 'Entendido' }]
-      );
+      reiniciandoRef.current = false;
+      setVozStatus('Escutando...');
+      const aindaAtiva = await AsyncStorage.getItem('@b_frase_ativa');
+      if (aindaAtiva === 'true' && fraseCodigoAtivaRef.current) {
+        setTimeout(() => iniciarEscutaVoz(), 2000);
+      }
     }
   };
 
@@ -313,19 +345,21 @@ export default function App() {
       ExpoSpeechRecognitionModule.removeAllListeners('error');
     } catch (_) {}
     vozRecognition.current = null;
+    reiniciandoRef.current = false;
   };
 
   const acionarSOSCompleto = async () => {
     Vibration.vibrate(1000);
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
-    setSosAtivado(true); setSosMensagem('🆘 Acionando ajuda...');
+    setSosAtivado(true); setSosMensagem('Acionando ajuda...');
     const gps = await obterLocalizacaoAtual();
     const linkMaps = gps ? 'https://maps.google.com/?q=' + gps.latitude + ',' + gps.longitude : 'Localizacao nao disponivel';
     const msgTexto = 'SOS EMERGENCIA - Preciso de ajuda AGORA! Localizacao: ' + linkMaps + ' - App Basta';
     let enviados = 0;
-    for (let i = 0; i < listaContatos.length; i++) {
-      const c = listaContatos[i];
-      setSosMensagem('Enviando para ' + c.nome + '... (' + (i + 1) + '/' + listaContatos.length + ')');
+    const contatos = listaContatos.length > 0 ? listaContatos : JSON.parse(await AsyncStorage.getItem('@b_c_list') || '[]');
+    for (let i = 0; i < contatos.length; i++) {
+      const c = contatos[i];
+      setSosMensagem('Enviando para ' + c.nome + '... (' + (i + 1) + '/' + contatos.length + ')');
       const tel = c.tel.replace(/\D/g, '');
       const telFull = tel.startsWith('55') ? tel : '55' + tel;
       try {
@@ -336,7 +370,7 @@ export default function App() {
       Vibration.vibrate(300);
       enviados++;
     }
-    setSosMensagem('✅ ' + enviados + ' contato(s) alertado(s)!');
+    setSosMensagem(enviados + ' contato(s) alertado(s)!');
     Vibration.vibrate(500);
     setTimeout(() => { setSosAtivado(false); setSosMensagem(''); }, 4000);
   };
@@ -366,7 +400,7 @@ export default function App() {
         setItens(lista);
         await AsyncStorage.setItem('@b_d', JSON.stringify(lista));
         Vibration.vibrate(200);
-        Alert.alert('Áudio salvo!', 'Gravação salva no Diário com blindagem.');
+        Alert.alert('Audio salvo!', 'Gravacao salva no Diario com blindagem.');
         return;
       }
       const { status } = await Audio.requestPermissionsAsync();
@@ -374,7 +408,7 @@ export default function App() {
       await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true, staysActiveInBackground: true });
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       setGravacaoRapida(recording); setGravandoRapido(true); Vibration.vibrate(100);
-    } catch (e) { Alert.alert('Erro', 'Não foi possível iniciar gravação.'); }
+    } catch (e) { Alert.alert('Erro', 'Nao foi possivel iniciar gravacao.'); }
   };
 
   const salvarNovoContato = async () => {
@@ -383,7 +417,7 @@ export default function App() {
     setListaContatos(novaLista);
     await AsyncStorage.setItem('@b_c_list', JSON.stringify(novaLista));
     setTempNome(''); setTempTel('');
-    Alert.alert('✅ Contato adicionado!', tempNome + ' foi salvo.');
+    Alert.alert('Contato adicionado!', tempNome + ' foi salvo.');
   };
 
   const excluirContato = async (id) => Alert.alert('Remover contato', 'Tem certeza?', [
@@ -396,15 +430,15 @@ export default function App() {
   ]);
 
   const montarTextoEvidencia = (item) => [
-    'REGISTRO DE EVIDÊNCIA — APP BASTA',
+    'REGISTRO DE EVIDENCIA — APP BASTA',
     '─────────────────────────────────────',
     'Data: ' + item.data,
     item.gps ? 'GPS: ' + item.gps.latitude.toFixed(6) + ', ' + item.gps.longitude.toFixed(6) : '',
     'Tipo: ' + item.tipo,
-    '', 'CONTEÚDO:',
+    '', 'CONTEUDO:',
     item.tipo === 'texto' ? item.conteudo : '[Arquivo de ' + item.tipo + ' registrado]',
     '', '─────────────────────────────────────',
-    'BLINDAGEM CRIPTOGRÁFICA:',
+    'BLINDAGEM CRIPTOGRAFICA:',
     'Hash SHA-256: ' + (item.hash || 'N/A'),
     'Carimbo: ' + (item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : item.data),
     '', 'Gerado pelo app Basta.',
@@ -417,23 +451,23 @@ export default function App() {
       const timestamp = new Date().toISOString();
       await new Promise(r => setTimeout(r, 350));
       let gps = null;
-      if (usarGPS) { setStepSalvando('Obtendo localização GPS...'); animarProgresso(45); gps = await obterLocalizacaoAtual(); }
+      if (usarGPS) { setStepSalvando('Obtendo localizacao GPS...'); animarProgresso(45); gps = await obterLocalizacaoAtual(); }
       setStepSalvando('Gerando hash SHA-256...'); animarProgresso(70);
       const hash = await gerarHash(tipo === 'texto' ? textoRelato : (conteudoUri + timestamp), timestamp);
       await new Promise(r => setTimeout(r, 300));
-      setStepSalvando('Salvando com segurança...'); animarProgresso(90);
+      setStepSalvando('Salvando com seguranca...'); animarProgresso(90);
       const novoItem = { id: Date.now().toString(), tipo, data: new Date().toLocaleString('pt-BR'), timestamp, hash, gps, conteudo: conteudoUri || textoRelato };
       const lista = [novoItem, ...itens];
       setItens(lista); await AsyncStorage.setItem('@b_d', JSON.stringify(lista));
       animarProgresso(100); setStepSalvando('Blindado!');
       await new Promise(r => setTimeout(r, 500));
       setSalvando(false); return novoItem;
-    } catch (e) { setSalvando(false); Alert.alert('Erro', 'Não foi possível salvar.'); return null; }
+    } catch (e) { setSalvando(false); Alert.alert('Erro', 'Nao foi possivel salvar.'); return null; }
   };
 
   const camera = async (tipo) => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return Alert.alert('Erro', 'Sem permissão de câmera');
+    if (status !== 'granted') return Alert.alert('Erro', 'Sem permissao de camera');
     const res = await ImagePicker.launchCameraAsync({
       mediaTypes: tipo === 'foto' ? ImagePicker.MediaTypeOptions.Images : ImagePicker.MediaTypeOptions.Videos,
       quality: 0.5
@@ -442,9 +476,9 @@ export default function App() {
   };
 
   const salvarRelato = async () => {
-    if (!relato.trim()) return Alert.alert('Atenção', 'Escreva algo antes de salvar.');
+    if (!relato.trim()) return Alert.alert('Atencao', 'Escreva algo antes de salvar.');
     const resultado = await salvarItem('texto', null, relato.trim());
-    if (resultado) { setRelato(''); Alert.alert('Registro blindado!', 'Salvo! Use "Salvar evidência" para enviar cópia.'); }
+    if (resultado) { setRelato(''); Alert.alert('Registro blindado!', 'Salvo!'); }
   };
 
   const excluirItem = async (id) => Alert.alert('Apagar registro', 'Tem certeza?', [
@@ -461,13 +495,13 @@ export default function App() {
       const { sound } = await Audio.Sound.createAsync({ uri });
       setAudioAtual(sound); setTocandoId(id); await sound.playAsync();
       sound.setOnPlaybackStatusUpdate(st => { if (st.didJustFinish) { setTocandoId(null); setAudioAtual(null); } });
-    } catch (e) { Alert.alert('Erro', 'Não foi possível reproduzir.'); }
+    } catch (e) { Alert.alert('Erro', 'Nao foi possivel reproduzir.'); }
   };
 
   const verificarIntegridade = async (item) => {
     const hashAtual = await gerarHash(item.conteudo, item.timestamp);
     const valido = hashAtual === item.hash;
-    Alert.alert(valido ? '✅ Evidência íntegra' : '⚠️ Registro alterado', valido ? 'Hash SHA-256 confere. Evidência válida.' : 'Hash não confere. Possível adulteração.');
+    Alert.alert(valido ? 'Evidencia integra' : 'Registro alterado', valido ? 'Hash SHA-256 confere. Evidencia valida.' : 'Hash nao confere. Possivel adulteracao.');
   };
 
   if (!desbloqueado) return <CalculadoraCamuflada onDesbloquear={() => { setDesbloqueado(true); carregarDados(); }} />;
@@ -493,24 +527,24 @@ export default function App() {
         <View style={s.modalOverlay}>
           <View style={s.modalSheet}>
             <View style={s.modalHandle} />
-            <Text style={s.modalTitulo}>Salvar evidência</Text>
+            <Text style={s.modalTitulo}>Salvar evidencia</Text>
             <Text style={s.modalSub}>Como deseja guardar este registro?</Text>
             {[
-              { ico: '📧', txt: 'E-mail', sub: 'Enviar cópia para seu e-mail seguro', fn: async () => {
+              { ico: '📧', txt: 'E-mail', sub: 'Enviar copia para seu e-mail seguro', fn: async () => {
                 setModalEvidencia(null); Vibration.vibrate(100);
                 try {
                   const ok = await MailComposer.isAvailableAsync();
-                  if (!ok) await Linking.openURL('mailto:?subject=' + encodeURIComponent('Evidência — App Basta') + '&body=' + encodeURIComponent(texto));
-                  else await MailComposer.composeAsync({ subject: 'Evidência — App Basta', body: texto, isHtml: false });
-                } catch (e) { Alert.alert('Erro', 'Não foi possível abrir o e-mail.'); }
+                  if (!ok) await Linking.openURL('mailto:?subject=' + encodeURIComponent('Evidencia — App Basta') + '&body=' + encodeURIComponent(texto));
+                  else await MailComposer.composeAsync({ subject: 'Evidencia — App Basta', body: texto, isHtml: false });
+                } catch (e) { Alert.alert('Erro', 'Nao foi possivel abrir o e-mail.'); }
               }},
-              { ico: '💬', txt: 'WhatsApp', sub: 'Enviar para contato de confiança', fn: async () => {
+              { ico: '💬', txt: 'WhatsApp', sub: 'Enviar para contato de confianca', fn: async () => {
                 setModalEvidencia(null); Vibration.vibrate(100);
                 await Linking.openURL('whatsapp://send?text=' + encodeURIComponent(texto));
               }},
               { ico: '📤', txt: 'Outros', sub: 'Drive, Telegram, salvar arquivo...', fn: async () => {
                 setModalEvidencia(null); Vibration.vibrate(100);
-                await Share.share({ message: texto, title: 'Evidência — App Basta' });
+                await Share.share({ message: texto, title: 'Evidencia — App Basta' });
               }},
             ].map((op, i) => (
               <TouchableOpacity key={i} style={s.modalOpcao} onPress={op.fn}>
@@ -522,7 +556,7 @@ export default function App() {
               </TouchableOpacity>
             ))}
             <TouchableOpacity style={s.modalVoltar} onPress={() => setModalEvidencia(null)}>
-              <Text style={s.modalVoltarTxt}>← Voltar para o diário</Text>
+              <Text style={s.modalVoltarTxt}>← Voltar para o diario</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -534,18 +568,18 @@ export default function App() {
     return (
       <SafeAreaView style={s.base}>
         <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
-        {renderHeader('Diário', 'Registre incidentes com provas blindadas')}
+        {renderHeader('Diario', 'Registre incidentes com provas blindadas')}
         <ScrollView style={s.conteudo} keyboardShouldPersistTaps="handled">
           <View style={s.botoesMedia}>
             <TouchableOpacity onPress={() => camera('foto')} style={s.btnMedia} disabled={salvando}><Text style={s.btnMediaIco}>📸</Text><Text style={s.btnMediaTxt}>Foto</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => camera('video')} style={s.btnMedia} disabled={salvando}><Text style={s.btnMediaIco}>🎥</Text><Text style={s.btnMediaTxt}>Vídeo</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => camera('video')} style={s.btnMedia} disabled={salvando}><Text style={s.btnMediaIco}>🎥</Text><Text style={s.btnMediaTxt}>Video</Text></TouchableOpacity>
           </View>
           <TextInput style={s.inputRelato} placeholder="Relate o ocorrido com detalhes..." placeholderTextColor="#C0A0A8" value={relato} onChangeText={setRelato} multiline numberOfLines={5} textAlignVertical="top" editable={!salvando} />
           <View style={s.blindagemCard}>
-            <Text style={s.blindagemTitulo}>🔒 Blindagem automática</Text>
-            <View style={s.toggleLinha}><View style={s.toggleInfo}><Text style={s.toggleLabel}>Carimbo de tempo</Text><Text style={s.toggleSub}>Data e hora imutáveis</Text></View><View style={s.tagAtivo}><Text style={s.tagAtivoTxt}>Sempre ativo</Text></View></View>
-            <View style={s.toggleLinha}><View style={s.toggleInfo}><Text style={s.toggleLabel}>Hash SHA-256</Text><Text style={s.toggleSub}>Prova que o conteúdo não foi alterado</Text></View><View style={s.tagAtivo}><Text style={s.tagAtivoTxt}>Sempre ativo</Text></View></View>
-            <View style={[s.toggleLinha, { borderBottomWidth: 0 }]}><View style={s.toggleInfo}><Text style={s.toggleLabel}>Localização GPS</Text><Text style={s.toggleSub}>Registra onde o relato foi feito</Text></View><Switch value={usarGPS} onValueChange={setUsarGPS} thumbColor="white" trackColor={{ true: ROXO, false: '#E0C0C8' }} /></View>
+            <Text style={s.blindagemTitulo}>🔒 Blindagem automatica</Text>
+            <View style={s.toggleLinha}><View style={s.toggleInfo}><Text style={s.toggleLabel}>Carimbo de tempo</Text><Text style={s.toggleSub}>Data e hora imutaveis</Text></View><View style={s.tagAtivo}><Text style={s.tagAtivoTxt}>Sempre ativo</Text></View></View>
+            <View style={s.toggleLinha}><View style={s.toggleInfo}><Text style={s.toggleLabel}>Hash SHA-256</Text><Text style={s.toggleSub}>Prova que o conteudo nao foi alterado</Text></View><View style={s.tagAtivo}><Text style={s.tagAtivoTxt}>Sempre ativo</Text></View></View>
+            <View style={[s.toggleLinha, { borderBottomWidth: 0 }]}><View style={s.toggleInfo}><Text style={s.toggleLabel}>Localizacao GPS</Text><Text style={s.toggleSub}>Registra onde o relato foi feito</Text></View><Switch value={usarGPS} onValueChange={setUsarGPS} thumbColor="white" trackColor={{ true: ROXO, false: '#E0C0C8' }} /></View>
           </View>
           {salvando && (
             <View style={s.salvandoBox}>
@@ -559,9 +593,9 @@ export default function App() {
               <Text style={s.btnGradTxt}>{salvando ? 'Blindando...' : '🔒 Salvar com blindagem'}</Text>
             </LinearGradient>
           </TouchableOpacity>
-          <View style={s.dicaBackup}><Text style={s.dicaBackupTxt}>💡 Após salvar, toque em "Salvar evidência" para enviar cópia por e-mail ou WhatsApp.</Text></View>
+          <View style={s.dicaBackup}><Text style={s.dicaBackupTxt}>💡 Apos salvar, toque em "Salvar evidencia" para enviar copia.</Text></View>
           {itens.length === 0 ? (
-            <View style={s.emptyBox}><Text style={s.emptyIco}>📋</Text><Text style={s.emptyTxt}>Nenhum registro ainda.</Text><Text style={s.emptySubTxt}>Seus registros são salvos com segurança.</Text></View>
+            <View style={s.emptyBox}><Text style={s.emptyIco}>📋</Text><Text style={s.emptyTxt}>Nenhum registro ainda.</Text><Text style={s.emptySubTxt}>Seus registros sao salvos com seguranca.</Text></View>
           ) : itens.map(item => (
             <View key={item.id} style={s.itemCard}>
               <View style={s.itemTopo}>
@@ -576,7 +610,7 @@ export default function App() {
               {item.tipo === 'texto' && <Text style={s.itemTexto}>{item.conteudo}</Text>}
               {item.tipo === 'foto' && (<TouchableOpacity onPress={() => setFotoFull(item.conteudo)}><Image source={{ uri: item.conteudo }} style={s.itemFoto} /><Text style={s.itemDica}>Toque para ampliar</Text></TouchableOpacity>)}
               {item.tipo === 'audio' && (<TouchableOpacity onPress={() => tocarAudio(item.conteudo, item.id)} style={s.audioBtn}><Text style={s.audioIco}>{tocandoId === item.id ? '⏹️' : '▶️'}</Text><Text style={s.audioTxt}>{tocandoId === item.id ? 'Tocando...' : 'Toque para ouvir'}</Text></TouchableOpacity>)}
-              {item.tipo === 'video' && (<View style={s.videoCard}><Text style={s.videoIco}>🎥</Text><Text style={s.videoTxt}>Vídeo gravado</Text></View>)}
+              {item.tipo === 'video' && (<View style={s.videoCard}><Text style={s.videoIco}>🎥</Text><Text style={s.videoTxt}>Video gravado</Text></View>)}
               {item.hash && (<TouchableOpacity onPress={() => setExpandidoId(expandidoId === item.id ? null : item.id)} style={s.hashToggle}><Text style={s.hashToggleTxt}>{expandidoId === item.id ? '▲ Ocultar' : '▼ Ver hash SHA-256'}</Text></TouchableOpacity>)}
               {expandidoId === item.id && (
                 <View style={s.hashBox}>
@@ -589,7 +623,7 @@ export default function App() {
               )}
               <TouchableOpacity onPress={() => setModalEvidencia(item)} style={{ marginTop: 10 }}>
                 <LinearGradient colors={[ROXO_MED, ROXO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.btnGrad}>
-                  <Text style={s.btnGradTxt}>📤 Salvar evidência</Text>
+                  <Text style={s.btnGradTxt}>📤 Salvar evidencia</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -606,21 +640,21 @@ export default function App() {
 
   if (tela === 'leis') {
     const leis = [
-      { titulo: 'Lei Maria da Penha (11.340/2006)', icon: '🛡️', resumo: 'A lei mais importante de proteção à mulher no Brasil.', detalhes: ['Protege contra violência doméstica e familiar de qualquer tipo.', 'Garante Medida Protetiva de Urgência: agressor afastado em até 48h.', 'Você pode pedir a medida protetiva na delegacia, SEM advogado.', 'O agressor pode ser preso em flagrante sem você assinar representação.', 'Inclui violência física, psicológica, sexual, patrimonial e moral.', 'Garante atendimento no SUS e assistência jurídica gratuita.'] },
-      { titulo: 'Lei do Feminicídio (13.104/2015)', icon: '⚖️', resumo: 'Torna o assassinato de mulheres por razões de gênero crime hediondo.', detalhes: ['Pena de 12 a 30 anos de reclusão.', 'A pena aumenta se cometido na presença dos filhos ou durante gravidez.', 'Crime hediondo: sem direito a anistia, graça ou fiança.'] },
-      { titulo: 'Lei Carolina Dieckmann (12.737/2012)', icon: '📱', resumo: 'Pune invasão de dispositivos e vazamento de fotos íntimas.', detalhes: ['Criminaliza acesso não autorizado ao celular, computador ou e-mail.', 'Pune quem divulga fotos ou vídeos íntimos sem consentimento.', 'Pena de 1 a 3 anos de reclusão, mais multa.'] },
-      { titulo: 'Lei da Importunação Sexual (13.718/2018)', icon: '🚫', resumo: 'Criminaliza atos sexuais sem consentimento.', detalhes: ['Pune toques, beijos ou qualquer ato libidinoso sem consentimento.', 'Inclui transportes públicos, eventos e locais de trabalho.', 'Pena de 1 a 5 anos de reclusão.'] },
-      { titulo: 'Lei do Minuto Seguinte (12.845/2013)', icon: '🏥', resumo: 'Atendimento médico gratuito para vítimas de violência sexual.', detalhes: ['Todo hospital público é obrigado a atender vítimas de violência sexual.', 'Inclui anticoncepção de emergência, profilaxia para HIV e DSTs.', 'NÃO precisa de B.O. para ser atendida.'] },
-      { titulo: 'Lei do Stalking (14.132/2021)', icon: '👁️', resumo: 'Criminaliza perseguição obsessiva e monitoramento sem consentimento.', detalhes: ['Pune quem persegue, monitora ou vigia outra pessoa repetidamente.', 'Inclui perseguição presencial, apps, redes sociais ou telefone.', 'Pena de 1 a 2 anos de reclusão, mais multa.'] },
-      { titulo: 'Lei da Revenge Porn (13.718/2018)', icon: '🔒', resumo: 'Pune divulgação de fotos e vídeos íntimos sem consentimento.', detalhes: ['Compartilhar imagens íntimas sem autorização é crime.', 'Pena de 1 a 5 anos de reclusão.', 'Plataformas obrigadas a remover o conteúdo em 24-48h.'] },
-      { titulo: 'Lei Berenice Pohl (13.505/2017)', icon: '👮‍♀️', resumo: 'Garante atendimento especializado para vítimas de violência sexual.', detalhes: ['A vítima tem direito a ser ouvida por delegada ou agente feminina.', 'Depoimento em sala reservada e sigilosa.', 'Proíbe contato da vítima com o agressor na delegacia.'] },
-      { titulo: 'Direitos Trabalhistas', icon: '💼', resumo: 'Proteção do emprego para mulheres vítimas de violência doméstica.', detalhes: ['Manutenção do vínculo empregatício por até 6 meses.', 'A mulher pode faltar para audiências sem perder o emprego.', 'O empregador não pode demitir por motivo relacionado à violência.'] },
-      { titulo: 'Tornozeleira Eletrônica (Lei 15.125/2025)', icon: '📡', resumo: 'Agressor deve usar tornozeleira eletrônica em casos de risco.', detalhes: ['O juiz pode determinar tornozeleira imediata para o agressor.', 'Em cidades sem juiz, o delegado pode ordenar a instalação.', 'A vítima recebe um dispositivo que alerta se o agressor se aproximar.', 'Se o agressor violar a distância, a polícia é acionada automaticamente.', 'Descumprir a medida aumenta a pena em até 50%.', 'Você pode pedir essa medida na delegacia ou pelo advogado.'] },
+      { titulo: 'Lei Maria da Penha (11.340/2006)', icon: '🛡️', resumo: 'A lei mais importante de protecao a mulher no Brasil.', detalhes: ['Protege contra violencia domestica e familiar de qualquer tipo.', 'Garante Medida Protetiva de Urgencia: agressor afastado em ate 48h.', 'Voce pode pedir a medida protetiva na delegacia, SEM advogado.', 'O agressor pode ser preso em flagrante sem voce assinar representacao.', 'Inclui violencia fisica, psicologica, sexual, patrimonial e moral.', 'Garante atendimento no SUS e assistencia juridica gratuita.'] },
+      { titulo: 'Lei do Feminicidio (13.104/2015)', icon: '⚖️', resumo: 'Torna o assassinato de mulheres por razoes de genero crime hediondo.', detalhes: ['Pena de 12 a 30 anos de reclusao.', 'A pena aumenta se cometido na presenca dos filhos ou durante gravidez.', 'Crime hediondo: sem direito a anistia, graca ou fianca.'] },
+      { titulo: 'Lei Carolina Dieckmann (12.737/2012)', icon: '📱', resumo: 'Pune invasao de dispositivos e vazamento de fotos intimas.', detalhes: ['Criminaliza acesso nao autorizado ao celular, computador ou e-mail.', 'Pune quem divulga fotos ou videos intimos sem consentimento.', 'Pena de 1 a 3 anos de reclusao, mais multa.'] },
+      { titulo: 'Lei da Importunacao Sexual (13.718/2018)', icon: '🚫', resumo: 'Criminaliza atos sexuais sem consentimento.', detalhes: ['Pune toques, beijos ou qualquer ato libinoso sem consentimento.', 'Inclui transportes publicos, eventos e locais de trabalho.', 'Pena de 1 a 5 anos de reclusao.'] },
+      { titulo: 'Lei do Minuto Seguinte (12.845/2013)', icon: '🏥', resumo: 'Atendimento medico gratuito para vitimas de violencia sexual.', detalhes: ['Todo hospital publico e obrigado a atender vitimas de violencia sexual.', 'Inclui anticoncepcao de emergencia, profilaxia para HIV e DSTs.', 'NAO precisa de B.O. para ser atendida.'] },
+      { titulo: 'Lei do Stalking (14.132/2021)', icon: '👁️', resumo: 'Criminaliza perseguicao obsessiva e monitoramento sem consentimento.', detalhes: ['Pune quem persegue, monitora ou vigia outra pessoa repetidamente.', 'Inclui perseguicao presencial, apps, redes sociais ou telefone.', 'Pena de 1 a 2 anos de reclusao, mais multa.'] },
+      { titulo: 'Lei da Revenge Porn (13.718/2018)', icon: '🔒', resumo: 'Pune divulgacao de fotos e videos intimos sem consentimento.', detalhes: ['Compartilhar imagens intimas sem autorizacao e crime.', 'Pena de 1 a 5 anos de reclusao.', 'Plataformas obrigadas a remover o conteudo em 24-48h.'] },
+      { titulo: 'Lei Berenice Pohl (13.505/2017)', icon: '👮‍♀️', resumo: 'Garante atendimento especializado para vitimas de violencia sexual.', detalhes: ['A vitima tem direito a ser ouvida por delegada ou agente feminina.', 'Depoimento em sala reservada e sigilosa.', 'Proibe contato da vitima com o agressor na delegacia.'] },
+      { titulo: 'Direitos Trabalhistas', icon: '💼', resumo: 'Protecao do emprego para mulheres vitimas de violencia domestica.', detalhes: ['Manutencao do vinculo empregaticio por ate 6 meses.', 'A mulher pode faltar para audiencias sem perder o emprego.', 'O empregador nao pode demitir por motivo relacionado a violencia.'] },
+      { titulo: 'Tornozeleira Eletronica (Lei 15.125/2025)', icon: '📡', resumo: 'Agressor deve usar tornozeleira eletronica em casos de risco.', detalhes: ['O juiz pode determinar tornozeleira imediata para o agressor.', 'Em cidades sem juiz, o delegado pode ordenar a instalacao.', 'A vitima recebe um dispositivo que alerta se o agressor se aproximar.', 'Se o agressor violar a distancia, a policia e acionada automaticamente.', 'Descumprir a medida aumenta a pena em ate 50%.', 'Voce pode pedir essa medida na delegacia ou pelo advogado.'] },
     ];
     return (
       <SafeAreaView style={s.base}>
         <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
-        {renderHeader('Seus Direitos', 'Conheça as leis que te protegem')}
+        {renderHeader('Seus Direitos', 'Conheca as leis que te protegem')}
         <TouchableOpacity onPress={() => Linking.openURL('tel:180')} style={{ marginHorizontal: 16, marginTop: 16 }}>
           <LinearGradient colors={[ROXO_MED, ROXO]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.ligue180}>
             <Text style={s.ligue180Num}>180</Text>
@@ -640,7 +674,7 @@ export default function App() {
     return (
       <SafeAreaView style={s.base}>
         <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
-        {renderHeader('Contatos', 'Pessoas que vão te proteger (' + listaContatos.length + '/5)')}
+        {renderHeader('Contatos', 'Pessoas que vao te proteger (' + listaContatos.length + '/5)')}
         <ScrollView style={s.conteudo}>
           <View style={s.formCard}>
             <Text style={s.formTitulo}>+ Adicionar contato</Text>
@@ -653,7 +687,7 @@ export default function App() {
             </TouchableOpacity>
           </View>
           {listaContatos.length === 0 ? (
-            <View style={s.emptyBox}><Text style={s.emptyIco}>👤</Text><Text style={s.emptyTxt}>Nenhum contato ainda.</Text><Text style={s.emptySubTxt}>Adicione alguém de confiança acima.</Text></View>
+            <View style={s.emptyBox}><Text style={s.emptyIco}>👤</Text><Text style={s.emptyTxt}>Nenhum contato ainda.</Text><Text style={s.emptySubTxt}>Adicione alguem de confianca acima.</Text></View>
           ) : listaContatos.map(c => (
             <View key={c.id} style={s.contatoCard}>
               <LinearGradient colors={[ROXO_MED, ROXO]} style={s.contatoAvatar}>
@@ -663,7 +697,7 @@ export default function App() {
               <TouchableOpacity onPress={() => excluirContato(c.id)} style={s.lixeiraBtn}><Text style={s.lixeiraIco}>🗑️</Text></TouchableOpacity>
             </View>
           ))}
-          <View style={s.dicaBox}><Text style={s.dicaTxt}>💡 No SOS, todos recebem WhatsApp com localização, em cascata, com 1 toque.</Text></View>
+          <View style={s.dicaBox}><Text style={s.dicaTxt}>💡 No SOS, todos recebem WhatsApp com localizacao, em cascata, com 1 toque.</Text></View>
           <View style={{ height: 32 }} />
         </ScrollView>
       </SafeAreaView>
@@ -681,11 +715,11 @@ export default function App() {
           <LogoBasta size={52} />
           <Text style={s.headerNome}>Basta.</Text>
         </View>
-        <Text style={s.headerSlogan}>Você nunca está sozinha.</Text>
+        <Text style={s.headerSlogan}>Voce nunca esta sozinha.</Text>
         <View style={s.statusBar}>
           <View style={[s.statusDot, localizacaoAtiva && { backgroundColor: '#60A5FA' }]} />
           <Text style={s.statusTxt}>
-            {localizacaoAtiva ? 'Rastreando' : 'Você não está sozinha'} • {listaContatos.length} contato{listaContatos.length !== 1 ? 's' : ''}
+            {localizacaoAtiva ? 'Rastreando' : 'Voce nao esta sozinha'} • {listaContatos.length} contato{listaContatos.length !== 1 ? 's' : ''}
             {fraseCodigoAtiva ? ' • Escutando' : ''}
           </Text>
         </View>
@@ -704,28 +738,28 @@ export default function App() {
           <Animated.View style={[s.anel, { transform: [{ scale: pulso1 }], opacity: 0.15 }]} />
           <TouchableOpacity style={s.sosBtn} onPress={enviarSOS} activeOpacity={0.85}>
             <Text style={s.sosT}>SOS</Text>
-            <Text style={s.sosEmerg}>EMERGÊNCIA</Text>
+            <Text style={s.sosEmerg}>EMERGENCIA</Text>
           </TouchableOpacity>
         </View>
         <Text style={s.sosInstrucao}>1 toque → envia direto para todos os contatos</Text>
         <View style={s.botoesRapidos}>
           <TouchableOpacity style={[s.btnRapido, gravandoRapido && s.btnRapidoAtivo]} onPress={iniciarGravacaoRapida}>
             <Text style={s.btnRapidoIco}>{gravandoRapido ? '⏹' : '🎙'}</Text>
-            <Text style={[s.btnRapidoTxt, gravandoRapido && { color: ROSE }]}>{gravandoRapido ? 'Parar' : 'Gravar áudio'}</Text>
+            <Text style={[s.btnRapidoTxt, gravandoRapido && { color: ROSE }]}>{gravandoRapido ? 'Parar' : 'Gravar audio'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[s.btnRapido, fraseCodigoAtiva && s.btnRapidoVozAtivo]} onPress={toggleFraseCodigo}>
             <Text style={s.btnRapidoIco}>{fraseCodigoAtiva ? '👂' : '🗣'}</Text>
-            <Text style={[s.btnRapidoTxt, fraseCodigoAtiva && { color: ROXO }]}>{fraseCodigoAtiva ? 'Escutando...' : 'Frase-código'}</Text>
+            <Text style={[s.btnRapidoTxt, fraseCodigoAtiva && { color: ROXO }]}>{fraseCodigoAtiva ? 'Escutando...' : 'Frase-codigo'}</Text>
           </TouchableOpacity>
         </View>
         {fraseCodigoAtiva && (
           <View style={s.vozStatusBox}>
             <Text style={s.vozStatusTxt}>{vozStatus || 'Escutando...'}</Text>
-            <Text style={s.vozFrases}>SOS automático ao detectar frase — sem confirmação</Text>
+            <Text style={s.vozFrases}>SOS automatico ao detectar frase — sem confirmacao</Text>
           </View>
         )}
         <View style={s.grid}>
-          <TouchableOpacity style={s.card} onPress={() => setTela('diario')}><Text style={s.cardIco}>📓</Text><Text style={s.cardTitulo}>Diário</Text><Text style={s.cardSub}>Registrar incidentes</Text></TouchableOpacity>
+          <TouchableOpacity style={s.card} onPress={() => setTela('diario')}><Text style={s.cardIco}>📓</Text><Text style={s.cardTitulo}>Diario</Text><Text style={s.cardSub}>Registrar incidentes</Text></TouchableOpacity>
           <TouchableOpacity style={s.card} onPress={() => setTela('leis')}><Text style={s.cardIco}>⚖️</Text><Text style={s.cardTitulo}>Seus Direitos</Text><Text style={s.cardSub}>Leis que te protegem</Text></TouchableOpacity>
           <TouchableOpacity style={s.card} onPress={() => Linking.openURL('tel:180')}><Text style={s.cardIco}>📞</Text><Text style={s.cardTitulo}>Ligue 180</Text><Text style={s.cardSub}>Central gratuita 24h</Text></TouchableOpacity>
           <TouchableOpacity style={s.card} onPress={() => setTela('contatos')}><Text style={s.cardIco}>👥</Text><Text style={s.cardTitulo}>Contatos</Text><Text style={s.cardSub}>{listaContatos.length === 0 ? 'Adicionar' : listaContatos.length + ' cadastrado' + (listaContatos.length !== 1 ? 's' : '')}</Text></TouchableOpacity>
@@ -733,28 +767,28 @@ export default function App() {
         {listaContatos.length === 0 && (
           <TouchableOpacity style={s.alertaCard} onPress={() => setTela('contatos')}>
             <Text style={{ fontSize: 22 }}>⚠️</Text>
-            <View style={{ flex: 1 }}><Text style={s.alertaTitulo}>Adicione contatos de emergência</Text><Text style={s.alertaSub}>O SOS precisa de contatos cadastrados</Text></View>
+            <View style={{ flex: 1 }}><Text style={s.alertaTitulo}>Adicione contatos de emergencia</Text><Text style={s.alertaSub}>O SOS precisa de contatos cadastrados</Text></View>
             <Text style={{ fontSize: 20, color: '#8A6070' }}>›</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={s.rowCard} onPress={() => setTela('mapa')}>
           <Text style={{ fontSize: 18 }}>📍</Text>
-          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Mapa de delegacias</Text><Text style={s.rowCardSub}>Encontre a unidade mais próxima</Text></View>
+          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Mapa de delegacias</Text><Text style={s.rowCardSub}>Encontre a unidade mais proxima</Text></View>
           <Text style={{ fontSize: 18, color: '#8A6070' }}>›</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[s.rowCard, localizacaoAtiva && s.rowCardAtivo]} onPress={toggleLocalizacao}>
           <Text style={{ fontSize: 18 }}>🗺️</Text>
-          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Localização contínua</Text><Text style={s.rowCardSub}>{localizacaoAtiva ? 'Ativa — rastreando em segundo plano' : 'Toque para ativar rastreamento'}</Text></View>
+          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Localizacao continua</Text><Text style={s.rowCardSub}>{localizacaoAtiva ? 'Ativa — rastreando em segundo plano' : 'Toque para ativar rastreamento'}</Text></View>
           <View style={[s.rowDot, localizacaoAtiva && { backgroundColor: '#60A5FA' }]} />
         </TouchableOpacity>
         <TouchableOpacity style={[s.rowCard, fraseCodigoAtiva && s.rowCardVoz]} onPress={toggleFraseCodigo}>
           <Text style={{ fontSize: 18 }}>🗣</Text>
-          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Frase-código</Text><Text style={s.rowCardSub}>{fraseCodigoAtiva ? 'Ativa — SOS automático ao detectar' : 'Toque para ativar escuta'}</Text></View>
+          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Frase-codigo</Text><Text style={s.rowCardSub}>{fraseCodigoAtiva ? 'Ativa — SOS automatico ao detectar' : 'Toque para ativar escuta'}</Text></View>
           <View style={[s.rowDot, fraseCodigoAtiva && { backgroundColor: ROXO }]} />
         </TouchableOpacity>
         <TouchableOpacity style={s.rowCard} onPress={() => setShowGerenciarFrases(!showGerenciarFrases)}>
           <Text style={{ fontSize: 18 }}>✏️</Text>
-          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Minhas frases-código</Text><Text style={s.rowCardSub}>Personalizar frases que ativam o SOS</Text></View>
+          <View style={{ flex: 1 }}><Text style={s.rowCardTitulo}>Minhas frases-codigo</Text><Text style={s.rowCardSub}>Personalizar frases que ativam o SOS</Text></View>
           <Text style={{ fontSize: 14, color: '#8A6070' }}>{showGerenciarFrases ? '▲' : '▼'}</Text>
         </TouchableOpacity>
         {showGerenciarFrases && (
@@ -787,14 +821,14 @@ export default function App() {
                 </LinearGradient>
               </TouchableOpacity>
             </View>
-            <View style={s.fraseAviso}><Text style={s.fraseAvisoTxt}>⚠️ Ao detectar qualquer frase, o SOS é enviado imediatamente, sem confirmação.</Text></View>
+            <View style={s.fraseAviso}><Text style={s.fraseAvisoTxt}>⚠️ Ao detectar qualquer frase, o SOS e enviado imediatamente, sem confirmacao.</Text></View>
           </View>
         )}
         <LinearGradient colors={GRAD} locations={GRAD_L} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.banner}>
           <View style={{ alignItems: 'center', marginBottom: 10 }}>
             <LogoBasta size={64} />
           </View>
-          <Text style={s.bannerTxt}>Proteção completa no seu bolso</Text>
+          <Text style={s.bannerTxt}>Protecao completa no seu bolso</Text>
           <Text style={s.bannerSub}>Mais que um app. Um suporte real.</Text>
         </LinearGradient>
       </ScrollView>
@@ -982,5 +1016,4 @@ const s = StyleSheet.create({
   leiTxt: { flex: 1, fontSize: 13, color: '#4A2D3A', lineHeight: 20 },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
-});
-FIM 
+}); 
