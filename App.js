@@ -12,6 +12,8 @@ import * as MailComposer from 'expo-mail-composer';
 import * as SMS from 'expo-sms';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
+import { NativeModules } from 'react-native';
+const { SmsModule } = NativeModules;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import CalculadoraCamuflada from './CalculadoraCamuflada';
 import MapaDelegacias from './MapaDelegacias';
@@ -360,15 +362,16 @@ export default function App() {
 
     let enviados = 0;
 
-    // Envia SMS direto para todos os contatos (funciona em segundo plano)
+    // Envia SMS direto via módulo nativo (funciona em segundo plano sem perguntar)
     for (let i = 0; i < contatos.length; i++) {
       const c = contatos[i];
       setSosMensagem('Enviando SMS para ' + c.nome + '... (' + (i + 1) + '/' + contatos.length + ')');
       const tel = c.tel.replace(/\D/g, '');
       const telFull = tel.startsWith('55') ? tel : '55' + tel;
       try {
-        await Linking.openURL('sms:+' + telFull + '?body=' + encodeURIComponent(msgTexto));
-        await new Promise(r => setTimeout(r, 800));
+        if (SmsModule) {
+          await SmsModule.sendSms('+' + telFull, msgTexto);
+        }
       } catch (e) {}
       Vibration.vibrate(300);
       enviados++;
