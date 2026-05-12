@@ -15,6 +15,7 @@ import { Audio } from 'expo-av';
 import { NativeModules } from 'react-native';
 const { SmsModule } = NativeModules;
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Accelerometer } from 'expo-sensors';
 import CalculadoraCamuflada from './CalculadoraCamuflada';
 import MapaDelegacias from './MapaDelegacias';
 import {
@@ -96,6 +97,12 @@ export default function App() {
   const fraseCodigoAtivaRef = useRef(false);
   const reiniciandoRef = useRef(false);
   const frasesRef = useRef(FRASES_PADRAO);
+  const shakeCountRef = useRef(0);
+  const shakeTimerRef = useRef(null);
+  const ultimoShakeRef = useRef(0);
+  const volumeCountRef = useRef(0);
+  const volumeTimerRef = useRef(null);
+  const [sosDiscreto, setSosDiscreto] = useState(false);
 
   useEffect(() => { frasesRef.current = frases; }, [frases]);
 
@@ -104,6 +111,8 @@ export default function App() {
     carregarDados();
     configurarCanais();
     registrarTarefaKeepalive();
+    iniciarDeteccaoShake();
+    iniciarDeteccaoVolume();
     AsyncStorage.getItem('@b_frase_ativa').then(val => {
       if (val === 'true') {
         setFraseCodigoAtiva(true);
@@ -115,6 +124,7 @@ export default function App() {
     return () => {
       pararLocalizacaoContinua();
       pararEscutaVoz();
+      Accelerometer.removeAllListeners();
     };
   }, []);
 
@@ -206,6 +216,55 @@ export default function App() {
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       return { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
     } catch (e) { return null; }
+  };
+
+  const iniciarDeteccaoShake = () => {
+    Accelerometer.setUpdateInterval(100);
+    Accelerometer.addListener(({ x, y, z }) => {
+      const forca = Math.sqrt(x * x + y * y + z * z);
+      const agora = Date.now();
+      if (forca > 2.5 && agora - ultimoShakeRef.current > 500) {
+        ultimoShakeRef.current = agora;
+        shakeCountRef.current += 1;
+        Vibration.vibrate(50);
+        if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
+        if (shakeCountRef.current >= 3) {
+          shakeCountRef.current = 0;
+          acionarSOSDiscreto();
+        } else {
+          shakeTimerRef.current = setTimeout(() => {
+            shakeCountRef.current = 0;
+          }, 2000);
+        }
+      }
+    });
+  };
+
+  const iniciarDeteccaoVolume = () => {
+    try {
+      const { VolumeManager } = require('react-native-volume-manager');
+      VolumeManager.addVolumeListener((result) => {
+        volumeCountRef.current += 1;
+        if (volumeTimerRef.current) clearTimeout(volumeTimerRef.current);
+        if (volumeCountRef.current >= 3) {
+          volumeCountRef.current = 0;
+          acionarSOSDiscreto();
+        } else {
+          volumeTimerRef.current = setTimeout(() => {
+            volumeCountRef.current = 0;
+          }, 2000);
+        }
+      });
+    } catch (e) {}
+  };
+
+  const acionarSOSDiscreto = async () => {
+    if (sosDiscreto) return;
+    setSosDiscreto(true);
+    Vibration.vibrate([0, 300, 100, 300, 100, 300]);
+    try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (_) {}
+    await acionarSOSCompleto(true);
+    setTimeout(() => setSosDiscreto(false), 5000);
   };
 
   const toggleFraseCodigo = async () => {
@@ -758,6 +817,12 @@ export default function App() {
           <View style={s.sosConfirmacao}>
             <Text style={{ fontSize: 20 }}>🆘</Text>
             <Text style={s.sosConfirmacaoTxt}>{sosMensagem}</Text>
+          </View>
+        )}
+        {sosDiscreto && !sosAtivado && (
+          <View style={[s.sosConfirmacao, { borderColor: '#6B3FA0' }]}>
+            <Text style={{ fontSize: 20 }}>🔇</Text>
+            <Text style={s.sosConfirmacaoTxt}>SOS discreto acionado! Enviando...</Text>
           </View>
         )}
         <View style={s.sosArea}>
