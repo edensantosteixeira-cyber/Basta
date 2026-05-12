@@ -59,7 +59,19 @@
           "microphonePermission": "Permite gravar áudio secretamente como evidência."
         }
       ],
-      "expo-speech-recognition",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Permite escutar a frase-código para acionar o SOS automaticamente.",
+          "speechRecognitionPermission": "Permite reconhecer a frase-código para acionar o SOS.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"],
+          "foregroundService": {
+            "notificationTitle": "Basta — Proteção ativa",
+            "notificationDescription": "Monitorando frase de segurança em segundo plano.",
+            "notificationColor": "#6B3FA0"
+          }
+        }
+      ],
       [
         "expo-notifications",
         {
