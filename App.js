@@ -272,7 +272,7 @@ export default function App() {
             Vibration.vibrate([0, 500, 200, 500, 200, 500]);
             try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (_) {}
 
-            await acionarSOSCompleto();
+            await acionarSOSCompleto(true);
 
             setFraseCodigoAtiva(false);
             setVozStatus('');
@@ -348,31 +348,56 @@ export default function App() {
     reiniciandoRef.current = false;
   };
 
-  const acionarSOSCompleto = async () => {
-    Vibration.vibrate(1000);
+  const acionarSOSCompleto = async (segundoPlano = false) => {
+    Vibration.vibrate([0, 500, 200, 500, 200, 500]);
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
     setSosAtivado(true); setSosMensagem('Acionando ajuda...');
+
     const gps = await obterLocalizacaoAtual();
     const linkMaps = gps ? 'https://maps.google.com/?q=' + gps.latitude + ',' + gps.longitude : 'Localizacao nao disponivel';
     const msgTexto = 'SOS EMERGENCIA - Preciso de ajuda AGORA! Localizacao: ' + linkMaps + ' - App Basta';
-    let enviados = 0;
     const contatos = listaContatos.length > 0 ? listaContatos : JSON.parse(await AsyncStorage.getItem('@b_c_list') || '[]');
+
+    let enviados = 0;
+
+    // Envia SMS direto para todos os contatos (funciona em segundo plano)
     for (let i = 0; i < contatos.length; i++) {
       const c = contatos[i];
-      setSosMensagem('Enviando para ' + c.nome + '... (' + (i + 1) + '/' + contatos.length + ')');
+      setSosMensagem('Enviando SMS para ' + c.nome + '... (' + (i + 1) + '/' + contatos.length + ')');
       const tel = c.tel.replace(/\D/g, '');
       const telFull = tel.startsWith('55') ? tel : '55' + tel;
       try {
-        const url = 'whatsapp://send?phone=%2B' + telFull + '&text=' + encodeURIComponent(msgTexto);
-        await Linking.openURL(url);
-        await new Promise(r => setTimeout(r, 1500));
+        await Linking.openURL('sms:+' + telFull + '?body=' + encodeURIComponent(msgTexto));
+        await new Promise(r => setTimeout(r, 800));
       } catch (e) {}
       Vibration.vibrate(300);
       enviados++;
     }
-    setSosMensagem(enviados + ' contato(s) alertado(s)!');
+
+    // Se estiver em primeiro plano, envia WhatsApp também
+    if (!segundoPlano) {
+      setSosMensagem('Enviando WhatsApp...');
+      for (let i = 0; i < contatos.length; i++) {
+        const c = contatos[i];
+        const tel = c.tel.replace(/\D/g, '');
+        const telFull = tel.startsWith('55') ? tel : '55' + tel;
+        try {
+          const url = 'whatsapp://send?phone=%2B' + telFull + '&text=' + encodeURIComponent(msgTexto);
+          await Linking.openURL(url);
+          await new Promise(r => setTimeout(r, 1500));
+        } catch (e) {}
+      }
+    }
+
+    // Notificação de confirmação
+    try {
+      const { mostrarNotificacaoSOS } = require('./tarefaSegundoPlano');
+      await mostrarNotificacaoSOS(enviados);
+    } catch (e) {}
+
+    setSosMensagem(enviados + ' contato(s) alertado(s) via SMS' + (!segundoPlano ? ' + WhatsApp' : '') + '!');
     Vibration.vibrate(500);
-    setTimeout(() => { setSosAtivado(false); setSosMensagem(''); }, 4000);
+    setTimeout(() => { setSosAtivado(false); setSosMensagem(''); }, 5000);
   };
 
   const enviarSOS = async () => {
