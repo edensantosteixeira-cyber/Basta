@@ -10,8 +10,8 @@ try {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
     }),
   });
 } catch (e) {}
@@ -41,12 +41,23 @@ export const mostrarNotificacaoProtecao = async () => {
       identifier: 'basta-protecao-ativa',
       content: {
         title: 'Basta — Proteção ativa',
-        body: 'Monitorando frase de segurança em segundo plano.',
+        body: 'Toque em SOS para pedir ajuda imediatamente.',
+        sticky: true,
+        autoDismiss: false,
         android: {
           channelId: 'basta-protecao',
           ongoing: true,
-          priority: 'low',
+          priority: 'high',
           color: '#6B3FA0',
+          actions: [
+            {
+              identifier: 'SOS_ACTION',
+              buttonTitle: '🆘 ENVIAR SOS AGORA',
+              options: {
+                opensAppToForeground: false,
+              },
+            },
+          ],
         },
       },
       trigger: null,
@@ -65,7 +76,7 @@ export const mostrarNotificacaoSOS = async (contatosAlertados) => {
     await Notifications.scheduleNotificationAsync({
       content: {
         title: '🆘 SOS ENVIADO!',
-        body: `SMS de emergência enviado para ${contatosAlertados} contato(s)! Mantenha a calma.`,
+        body: `SMS enviado para ${contatosAlertados} contato(s)! Mantenha a calma.`,
         android: {
           channelId: 'basta-sos',
           priority: 'max',
@@ -75,30 +86,6 @@ export const mostrarNotificacaoSOS = async (contatosAlertados) => {
       trigger: null,
     });
   } catch (e) {}
-};
-
-export const enviarSMSSegundoPlano = async () => {
-  try {
-    const raw = await AsyncStorage.getItem('@b_c_list');
-    const contatos = raw ? JSON.parse(raw) : [];
-    if (contatos.length === 0) return 0;
-
-    const msg = 'SOS EMERGENCIA - Preciso de ajuda AGORA! Esta mensagem foi enviada automaticamente pelo app Basta.';
-
-    let enviados = 0;
-    for (const c of contatos) {
-      try {
-        const tel = c.tel.replace(/\D/g, '');
-        const telFull = tel.startsWith('55') ? tel : '55' + tel;
-        await Linking.openURL(`sms:+${telFull}?body=${encodeURIComponent(msg)}`);
-        await new Promise(r => setTimeout(r, 1000));
-        enviados++;
-      } catch (e) {}
-    }
-    return enviados;
-  } catch (e) {
-    return 0;
-  }
 };
 
 export const registrarTarefaKeepalive = async () => {
