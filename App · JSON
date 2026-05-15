@@ -81,11 +81,11 @@
         }
       ]
     ],
-    "owner": "app.basta",
+    "owner": "basta.appoficial",
     "ios": {},
     "extra": {
       "eas": {
-        "projectId": "e14285e5-3bc0-46e9-b38a-578e14b34c8f"
+        "projectId": ""
       }
     }
   }
