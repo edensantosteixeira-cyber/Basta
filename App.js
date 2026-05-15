@@ -1,4 +1,4 @@
- import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   Linking, Alert, Animated, ScrollView, StatusBar, TextInput,
@@ -71,6 +71,9 @@ export default function App() {
   const [fraseCodigoAtiva, setFraseCodigoAtiva] = useState(false);
   const [vozStatus, setVozStatus] = useState('');
   const [sosAtivado, setSosAtivado] = useState(false);
+  const [ligacaoFalsa, setLigacaoFalsa] = useState(false);
+  const [gravacaoSOS, setGravacaoSOS] = useState(null);
+  const [cronometroLigacao, setCronometroLigacao] = useState(0);
   const [sosMensagem, setSosMensagem] = useState('');
   const [gravandoRapido, setGravandoRapido] = useState(false);
   const [gravacaoRapida, setGravacaoRapida] = useState(null);
@@ -354,10 +357,71 @@ export default function App() {
     reiniciandoRef.current = false;
   };
 
+  // ─── LIGAÇÃO FALSA ───────────────────────────────────────────
+  const iniciarLigacaoFalsa = () => {
+    setLigacaoFalsa(true);
+    setCronometroLigacao(0);
+    Vibration.vibrate([0, 500, 200, 500]);
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch (_) {}
+    const timer = setInterval(() => {
+      setCronometroLigacao(prev => prev + 1);
+    }, 1000);
+    setTimeout(() => {
+      clearInterval(timer);
+      setLigacaoFalsa(false);
+      setCronometroLigacao(0);
+    }, 60000);
+  };
+
+  const encerrarLigacaoFalsa = () => {
+    setLigacaoFalsa(false);
+    setCronometroLigacao(0);
+    Vibration.vibrate(100);
+  };
+
+  // ─── GRAVAÇÃO AUTOMÁTICA NO SOS ──────────────────────────────
+  const iniciarGravacaoSOS = async () => {
+    try {
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') return null;
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true, staysActiveInBackground: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      setGravacaoSOS(recording);
+      return recording;
+    } catch (e) { return null; }
+  };
+
+  const pararGravacaoSOS = async (recording) => {
+    try {
+      if (!recording) return;
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      setGravacaoSOS(null);
+      const timestamp = new Date().toISOString();
+      const hash = await gerarHash(uri + timestamp, timestamp);
+      const novoItem = {
+        id: Date.now().toString(),
+        tipo: 'audio',
+        data: new Date().toLocaleString('pt-BR'),
+        timestamp,
+        hash,
+        conteudo: uri,
+      };
+      const d = await AsyncStorage.getItem('@b_d');
+      const lista = [novoItem, ...(d ? JSON.parse(d) : [])];
+      setItens(lista);
+      await AsyncStorage.setItem('@b_d', JSON.stringify(lista));
+    } catch (e) {}
+  };
+
   const acionarSOSCompleto = async () => {
     Vibration.vibrate([0, 500, 200, 500, 200, 500]);
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
     setSosAtivado(true); setSosMensagem('Acionando ajuda...');
+
+    // Inicia gravação automática como evidência
+    const recordingIniciado = await iniciarGravacaoSOS();
+    setTimeout(() => pararGravacaoSOS(recordingIniciado), 120000); // Para após 2 minutos
 
     const gps = await obterLocalizacaoAtual();
     const linkMaps = gps ? 'https://maps.google.com/?q=' + gps.latitude + ',' + gps.longitude : 'Localizacao nao disponivel';
@@ -713,6 +777,41 @@ export default function App() {
     );
   }
 
+  // ─── TELA DE LIGAÇÃO FALSA ──────────────────────────────────
+  if (ligacaoFalsa) {
+    const nomes = ['Mãe', 'Amiga Ana', 'Irmã Carol', 'Vizinha Lu', 'Tia Rosa'];
+    const nomeAleatorio = nomes[Math.floor(Math.random() * nomes.length)];
+    const mins = String(Math.floor(cronometroLigacao / 60)).padStart(2, '0');
+    const segs = String(cronometroLigacao % 60).padStart(2, '0');
+    return (
+      <View style={s.ligacaoContainer}>
+        <View style={s.ligacaoTopo}>
+          <Text style={s.ligacaoLabel}>Ligação em andamento</Text>
+          <Text style={s.ligacaoTimer}>{mins}:{segs}</Text>
+        </View>
+        <View style={s.ligacaoAvatar}>
+          <Text style={s.ligacaoAvatarTxt}>{nomeAleatorio.charAt(0)}</Text>
+        </View>
+        <Text style={s.ligacaoNome}>{nomeAleatorio}</Text>
+        <Text style={s.ligacaoNumero}>+55 (11) 9{Math.floor(Math.random()*9000+1000)}-{Math.floor(Math.random()*9000+1000)}</Text>
+        <View style={s.ligacaoBotoes}>
+          <TouchableOpacity style={s.ligacaoBtnSilencio}>
+            <Text style={s.ligacaoBtnIco}>🔇</Text>
+            <Text style={s.ligacaoBtnTxt}>Silenciar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.ligacaoBtnEncerrar} onPress={encerrarLigacaoFalsa}>
+            <Text style={s.ligacaoBtnIcoEncerrar}>📵</Text>
+            <Text style={s.ligacaoBtnTxtEncerrar}>Encerrar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.ligacaoBtnSilencio}>
+            <Text style={s.ligacaoBtnIco}>🔊</Text>
+            <Text style={s.ligacaoBtnTxt}>Viva-voz</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={s.base}>
       <StatusBar barStyle="light-content" backgroundColor={ROXO_ESC} />
@@ -760,6 +859,10 @@ export default function App() {
           <TouchableOpacity style={[s.btnRapido, fraseCodigoAtiva && s.btnRapidoVozAtivo]} onPress={toggleFraseCodigo}>
             <Text style={s.btnRapidoIco}>{fraseCodigoAtiva ? '👂' : '🗣'}</Text>
             <Text style={[s.btnRapidoTxt, fraseCodigoAtiva && { color: ROXO }]}>{fraseCodigoAtiva ? 'Escutando...' : 'Frase-codigo'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.btnRapido} onPress={iniciarLigacaoFalsa}>
+            <Text style={s.btnRapidoIco}>📞</Text>
+            <Text style={s.btnRapidoTxt}>Ligacao falsa</Text>
           </TouchableOpacity>
         </View>
         {fraseCodigoAtiva && (
@@ -1026,4 +1129,19 @@ const s = StyleSheet.create({
   leiTxt: { flex: 1, fontSize: 13, color: '#4A2D3A', lineHeight: 20 },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
-});
+  ligacaoContainer: { flex: 1, backgroundColor: '#1A0E14', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 60 },
+  ligacaoTopo: { alignItems: 'center' },
+  ligacaoLabel: { color: 'rgba(255,255,255,0.7)', fontSize: 14, marginBottom: 8 },
+  ligacaoTimer: { color: 'white', fontSize: 20, fontWeight: '600' },
+  ligacaoAvatar: { width: 120, height: 120, borderRadius: 60, backgroundColor: ROXO, alignItems: 'center', justifyContent: 'center' },
+  ligacaoAvatarTxt: { color: 'white', fontSize: 52, fontWeight: 'bold' },
+  ligacaoNome: { color: 'white', fontSize: 28, fontWeight: '700', marginTop: 16 },
+  ligacaoNumero: { color: 'rgba(255,255,255,0.6)', fontSize: 14, marginTop: 8 },
+  ligacaoBotoes: { flexDirection: 'row', gap: 32, alignItems: 'center' },
+  ligacaoBtnSilencio: { alignItems: 'center', gap: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 50, padding: 20 },
+  ligacaoBtnIco: { fontSize: 28 },
+  ligacaoBtnTxt: { color: 'rgba(255,255,255,0.7)', fontSize: 11 },
+  ligacaoBtnEncerrar: { alignItems: 'center', gap: 8, backgroundColor: ROSE, borderRadius: 50, padding: 24 },
+  ligacaoBtnIcoEncerrar: { fontSize: 32 },
+  ligacaoBtnTxtEncerrar: { color: 'white', fontSize: 11, fontWeight: '600' },
+}); 
