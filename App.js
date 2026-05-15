@@ -12,17 +12,12 @@ import * as MailComposer from 'expo-mail-composer';
 import * as SMS from 'expo-sms';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
-import { NativeModules } from 'react-native';
-const { SmsModule } = NativeModules;
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Accelerometer } from 'expo-sensors';
-import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import CalculadoraCamuflada from './CalculadoraCamuflada';
 import MapaDelegacias from './MapaDelegacias';
 import {
   configurarCanais,
-  mostrarNotificacaoProtecao,
-  removerNotificacaoProtecao,
   registrarTarefaKeepalive,
 } from './tarefaSegundoPlano';
 
@@ -96,24 +91,20 @@ export default function App() {
   const ultimaLocalizacao = useRef(null);
   const vozRecognition = useRef(null);
   const fraseCodigoAtivaRef = useRef(false);
-  const reiniciandoRef = useRef(false);
-  const frasesRef = useRef(FRASES_PADRAO);
   const shakeCountRef = useRef(0);
   const shakeTimerRef = useRef(null);
   const ultimoShakeRef = useRef(0);
-  const volumeCountRef = useRef(0);
-  const volumeTimerRef = useRef(null);
-  const [sosDiscreto, setSosDiscreto] = useState(false);
+  const reiniciandoRef = useRef(false);
+  const frasesRef = useRef(FRASES_PADRAO);
 
   useEffect(() => { frasesRef.current = frases; }, [frases]);
 
   useEffect(() => {
     iniciarPulso();
+    iniciarDeteccaoShake();
     carregarDados();
     configurarCanais();
     registrarTarefaKeepalive();
-    iniciarDeteccaoShake();
-    iniciarDeteccaoVolume();
     AsyncStorage.getItem('@b_frase_ativa').then(val => {
       if (val === 'true') {
         setFraseCodigoAtiva(true);
@@ -241,31 +232,12 @@ export default function App() {
     });
   };
 
-  const iniciarDeteccaoVolume = () => {
-    try {
-      const { VolumeManager } = require('react-native-volume-manager');
-      VolumeManager.addVolumeListener((result) => {
-        volumeCountRef.current += 1;
-        if (volumeTimerRef.current) clearTimeout(volumeTimerRef.current);
-        if (volumeCountRef.current >= 3) {
-          volumeCountRef.current = 0;
-          acionarSOSDiscreto();
-        } else {
-          volumeTimerRef.current = setTimeout(() => {
-            volumeCountRef.current = 0;
-          }, 2000);
-        }
-      });
-    } catch (e) {}
-  };
+
 
   const acionarSOSDiscreto = async () => {
-    if (sosDiscreto) return;
-    setSosDiscreto(true);
     Vibration.vibrate([0, 300, 100, 300, 100, 300]);
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (_) {}
-    await acionarSOSCompleto(true);
-    setTimeout(() => setSosDiscreto(false), 5000);
+    await acionarSOSCompleto(false);
   };
 
   const toggleFraseCodigo = async () => {
@@ -275,15 +247,11 @@ export default function App() {
       setFraseCodigoAtiva(false);
       setVozStatus('');
       await AsyncStorage.setItem('@b_frase_ativa', 'false');
-      await removerNotificacaoProtecao();
-      deactivateKeepAwake();
     } else {
       fraseCodigoAtivaRef.current = true;
       setFraseCodigoAtiva(true);
       setVozStatus('Ativando escuta...');
       await AsyncStorage.setItem('@b_frase_ativa', 'true');
-      await mostrarNotificacaoProtecao();
-      await activateKeepAwakeAsync();
       await iniciarEscutaVoz();
     }
   };
@@ -341,8 +309,7 @@ export default function App() {
             setFraseCodigoAtiva(false);
             setVozStatus('');
             await AsyncStorage.setItem('@b_frase_ativa', 'false');
-            await removerNotificacaoProtecao();
-          }
+                }
         } catch (_) {}
       });
 
@@ -412,7 +379,7 @@ export default function App() {
     reiniciandoRef.current = false;
   };
 
-  const acionarSOSCompleto = async (segundoPlano = false) => {
+  const acionarSOSCompleto = async () => {
     Vibration.vibrate([0, 500, 200, 500, 200, 500]);
     try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (e) {}
     setSosAtivado(true); setSosMensagem('Acionando ajuda...');
@@ -423,44 +390,21 @@ export default function App() {
     const contatos = listaContatos.length > 0 ? listaContatos : JSON.parse(await AsyncStorage.getItem('@b_c_list') || '[]');
 
     let enviados = 0;
-
-    // Envia SMS direto via módulo nativo (funciona em segundo plano sem perguntar)
     for (let i = 0; i < contatos.length; i++) {
       const c = contatos[i];
-      setSosMensagem('Enviando SMS para ' + c.nome + '... (' + (i + 1) + '/' + contatos.length + ')');
+      setSosMensagem('Enviando para ' + c.nome + '... (' + (i + 1) + '/' + contatos.length + ')');
       const tel = c.tel.replace(/\D/g, '');
       const telFull = tel.startsWith('55') ? tel : '55' + tel;
       try {
-        if (SmsModule) {
-          await SmsModule.sendSms('+' + telFull, msgTexto);
-        }
+        const url = 'whatsapp://send?phone=%2B' + telFull + '&text=' + encodeURIComponent(msgTexto);
+        await Linking.openURL(url);
+        await new Promise(r => setTimeout(r, 1500));
       } catch (e) {}
       Vibration.vibrate(300);
       enviados++;
     }
 
-    // Se estiver em primeiro plano, envia WhatsApp também
-    if (!segundoPlano) {
-      setSosMensagem('Enviando WhatsApp...');
-      for (let i = 0; i < contatos.length; i++) {
-        const c = contatos[i];
-        const tel = c.tel.replace(/\D/g, '');
-        const telFull = tel.startsWith('55') ? tel : '55' + tel;
-        try {
-          const url = 'whatsapp://send?phone=%2B' + telFull + '&text=' + encodeURIComponent(msgTexto);
-          await Linking.openURL(url);
-          await new Promise(r => setTimeout(r, 1500));
-        } catch (e) {}
-      }
-    }
-
-    // Notificação de confirmação
-    try {
-      const { mostrarNotificacaoSOS } = require('./tarefaSegundoPlano');
-      await mostrarNotificacaoSOS(enviados);
-    } catch (e) {}
-
-    setSosMensagem(enviados + ' contato(s) alertado(s) via SMS' + (!segundoPlano ? ' + WhatsApp' : '') + '!');
+    setSosMensagem(enviados + ' contato(s) alertado(s) via WhatsApp!');
     Vibration.vibrate(500);
     setTimeout(() => { setSosAtivado(false); setSosMensagem(''); }, 5000);
   };
@@ -822,12 +766,7 @@ export default function App() {
             <Text style={s.sosConfirmacaoTxt}>{sosMensagem}</Text>
           </View>
         )}
-        {sosDiscreto && !sosAtivado && (
-          <View style={[s.sosConfirmacao, { borderColor: '#6B3FA0' }]}>
-            <Text style={{ fontSize: 20 }}>🔇</Text>
-            <Text style={s.sosConfirmacaoTxt}>SOS discreto acionado! Enviando...</Text>
-          </View>
-        )}
+
         <View style={s.sosArea}>
           <Animated.View style={[s.anel, { transform: [{ scale: pulso3 }], opacity: 0.06 }]} />
           <Animated.View style={[s.anel, { transform: [{ scale: pulso2 }], opacity: 0.10 }]} />
