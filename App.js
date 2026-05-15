@@ -105,6 +105,16 @@ export default function App() {
     carregarDados();
     configurarCanais();
     registrarTarefaKeepalive();
+
+    // Pede todas as permissões na abertura — evita pedir depois
+    try {
+      const { ExpoSpeechRecognitionModule } = require('expo-speech-recognition');
+      ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    } catch (_) {}
+    try {
+      Notifications.requestPermissionsAsync();
+    } catch (_) {}
+
     AsyncStorage.getItem('@b_frase_ativa').then(val => {
       if (val === 'true') {
         setFraseCodigoAtiva(true);
