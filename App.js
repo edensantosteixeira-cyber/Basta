@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
   Linking, Alert, Animated, ScrollView, StatusBar, TextInput,
@@ -9,11 +9,9 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Crypto from 'expo-crypto';
 import * as MailComposer from 'expo-mail-composer';
-import * as SMS from 'expo-sms';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Accelerometer } from 'expo-sensors';
 import CalculadoraCamuflada from './CalculadoraCamuflada';
 import MapaDelegacias from './MapaDelegacias';
 import {
@@ -91,9 +89,6 @@ export default function App() {
   const ultimaLocalizacao = useRef(null);
   const vozRecognition = useRef(null);
   const fraseCodigoAtivaRef = useRef(false);
-  const shakeCountRef = useRef(0);
-  const shakeTimerRef = useRef(null);
-  const ultimoShakeRef = useRef(0);
   const reiniciandoRef = useRef(false);
   const frasesRef = useRef(FRASES_PADRAO);
 
@@ -101,7 +96,6 @@ export default function App() {
 
   useEffect(() => {
     iniciarPulso();
-    iniciarDeteccaoShake();
     carregarDados();
     configurarCanais();
     registrarTarefaKeepalive();
@@ -126,7 +120,6 @@ export default function App() {
     return () => {
       pararLocalizacaoContinua();
       pararEscutaVoz();
-      Accelerometer.removeAllListeners();
     };
   }, []);
 
@@ -220,35 +213,7 @@ export default function App() {
     } catch (e) { return null; }
   };
 
-  const iniciarDeteccaoShake = () => {
-    Accelerometer.setUpdateInterval(100);
-    Accelerometer.addListener(({ x, y, z }) => {
-      const forca = Math.sqrt(x * x + y * y + z * z);
-      const agora = Date.now();
-      if (forca > 2.5 && agora - ultimoShakeRef.current > 500) {
-        ultimoShakeRef.current = agora;
-        shakeCountRef.current += 1;
-        Vibration.vibrate(50);
-        if (shakeTimerRef.current) clearTimeout(shakeTimerRef.current);
-        if (shakeCountRef.current >= 3) {
-          shakeCountRef.current = 0;
-          acionarSOSDiscreto();
-        } else {
-          shakeTimerRef.current = setTimeout(() => {
-            shakeCountRef.current = 0;
-          }, 2000);
-        }
-      }
-    });
-  };
 
-
-
-  const acionarSOSDiscreto = async () => {
-    Vibration.vibrate([0, 300, 100, 300, 100, 300]);
-    try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error); } catch (_) {}
-    await acionarSOSCompleto(false);
-  };
 
   const toggleFraseCodigo = async () => {
     if (fraseCodigoAtiva) {
@@ -1061,4 +1026,4 @@ const s = StyleSheet.create({
   leiTxt: { flex: 1, fontSize: 13, color: '#4A2D3A', lineHeight: 20 },
   modal: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', justifyContent: 'center' },
   fullImg: { width: '100%', height: '80%' },
-}); 
+});
